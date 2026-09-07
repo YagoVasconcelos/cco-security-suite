@@ -4,12 +4,10 @@
  * Operadores exclusivos da Central de Controle Operacional (CCO)
  */
 export const OPERADORES_CCO = [
-  'Op. Maria Conceição',
-  'Op. Ordiley Batista',
-  'Op. Carlos Eduardo',
-  'Op. Fabiana Mendes',
-  'Op. Lucas Alcantara',
-  'Op. Juliana Ribeiro'
+  'Op. Operador 01',
+  'Op. Operador 02',
+  'Op. Operador 03',
+  'Op. Operador 04'
 ];
 
 /**
@@ -20,7 +18,7 @@ export const PREDIOS_CCO = [
   'PORTARIA 2 (P2)',
   'COMPOSTAGEM',
   'ESPAÇO SAUDE',
-  'RESTAURANTE (SODEXO)',
+  'RESTAURANTE / REFEITÓRIO',
   'LABORATORIO QUALIDADE',
   'BIORREFINARIA',
   'ADM',
@@ -79,11 +77,11 @@ export const TOPICOS_OCORRENCIA = [
  * Principais Empresas contratadas e parceiras do Site
  */
 export const EMPRESAS_CCO = [
-  'CSN SERVIÇOS',
-  'SERVIS SEGURANÇA',
-  'SYMRISE',
-  'SODEXO',
-  'CIA HVAC ENGENHARIA',
-  'LA CONSTRUÇÕES',
-  'ECOPARQUE ADMINISTRAÇÃO'
+  'PRESTADORES DE SERVIÇOS',
+  'SEGURANÇA PATRIMONIAL',
+  'ENGENHARIA E MANUTENÇÃO',
+  'LOGÍSTICA E TRANSPORTES',
+  'ALIMENTAÇÃO E CONVIVÊNCIA',
+  'CONSTRUÇÃO CIVIL',
+  'ADMINISTRAÇÃO CENTRAL'
 ];

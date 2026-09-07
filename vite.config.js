@@ -4,6 +4,7 @@ import path from 'path';
 import { ccoApiPlugin } from './src/server/apiPlugin.js';
 
 export default defineConfig({
+  base: './',
   plugins: [react(), ccoApiPlugin()],
   resolve: {
     alias: {
@@ -13,5 +14,9 @@ export default defineConfig({
   server: {
     port: 3000,
     open: false,
+  },
+  build: {
+    outDir: 'dist-react',
+    emptyOutDir: true,
   },
 });

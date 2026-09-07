@@ -119,12 +119,25 @@ npm run dev
 ```
 O console exibirá o endereço local (geralmente `http://localhost:3000` ou `http://localhost:5173`). Abra o navegador para utilizar a aplicação.
 
-### 6. Build de Produção
-Para compilar a versão final otimizada para publicação:
+### 6. Execução Desktop em Modo de Desenvolvimento (Electron)
+Para testar a aplicação em uma janela nativa do Windows maximizada sem abrir no navegador:
+```bash
+npm run electron:dev
+```
+
+### 7. Geração do Instalador Executável Windows (.EXE / Setup)
+Para compilar o código de produção e gerar o instalador nativo do Windows:
+```bash
+npm run build:exe
+```
+O executável de instalação (`CCO Security Suite Setup 1.0.0.exe`) será gerado automaticamente na pasta `dist-electron/`.
+
+### 8. Build Web Convencional
+Para compilar apenas os arquivos web estáticos sem empacotamento desktop:
 ```bash
 npm run build
 ```
-Para testar o build localmente via servidor de pré-visualização:
+Para testar via servidor de pré-visualização web:
 ```bash
 npm run preview
 ```

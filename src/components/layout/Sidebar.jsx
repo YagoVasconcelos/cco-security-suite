@@ -21,7 +21,7 @@ import {
 export default function Sidebar({ 
   activeModule = 'dashboard', 
   onSelectModule,
-  operadorAtivo = 'Op. Maria Conceição',
+  operadorAtivo = 'Op. Operador 01',
   onChangeOperador,
   onOpenSobre
 }) {
@@ -329,7 +329,7 @@ export default function Sidebar({
               <Clock className="w-3 h-3 text-blue-400" />
               <span>Turno 12x36</span>
             </div>
-            <span className="text-slate-500 font-mono">Site Ecoparque</span>
+            <span className="text-slate-500 font-mono">Planta Operacional</span>
           </div>
         </div>
       </div>

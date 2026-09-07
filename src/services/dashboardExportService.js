@@ -94,7 +94,7 @@ async function salvarExcelNaPastaExports(filename, base64Excel) {
 export async function exportarRelatorioConsolidadoPdf({
   periodoNome = 'Mês Atual (Setembro/2026)',
   filtros = {},
-  operador = 'Op. Maria Conceição',
+  operador = 'Op. Operador 01',
   dadosConsolidados = null
 } = {}) {
   try {
@@ -111,7 +111,7 @@ export async function exportarRelatorioConsolidadoPdf({
     const contentWidth = pageWidth - (margin * 2);
 
     const agoraStr = new Date().toLocaleString('pt-BR');
-    const nomeOperadorAtivo = operador || localStorage.getItem('cco_operador_ativo') || 'Op. Maria Conceição';
+    const nomeOperadorAtivo = operador || localStorage.getItem('cco_operador_ativo') || 'Op. Operador 01';
 
     // Desestrutura os filtros inteligentes
     const { 
@@ -205,7 +205,7 @@ export async function exportarRelatorioConsolidadoPdf({
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(191, 219, 254);
-    doc.text('PAINEL GERENCIAL DA CENTRAL DE CONTROLE OPERACIONAL • SITE ECOPARQUE', margin, 15);
+    doc.text('PAINEL GERENCIAL DA CENTRAL DE CONTROLE OPERACIONAL • PLANTA OPERACIONAL', margin, 15);
 
     // Sub-faixa com detalhes dos filtros aplicados por contexto
     doc.setFontSize(6.5);
@@ -324,7 +324,7 @@ export async function exportarRelatorioConsolidadoPdf({
       linhasReincidentes = [['Nenhum registro de reincidência.', '-', '-']];
     }
 
-    // Dados Tabela 2: Inadimplência (Sem valores financeiros - Regra Natura)
+    // Dados Tabela 2: Inadimplência (Sem valores financeiros - Regra Corporativa)
     let linhasInadimplentes = [];
     if (Array.isArray(tabelasAnaliticas.inadimplentes) && tabelasAnaliticas.inadimplentes.length > 0) {
       linhasInadimplentes = tabelasAnaliticas.inadimplentes.slice(0, 5).map(i => [
@@ -334,12 +334,7 @@ export async function exportarRelatorioConsolidadoPdf({
       ]);
     } else {
       const perdidos = rfid.filter(r => r?.status === 'PERDIDO');
-      linhasInadimplentes = (perdidos.length > 0 ? perdidos : [
-        { colaborador: 'ELIAS NICACIO SANTOS', empresa: 'CIA HVAC ENGENHARIA', dataPerda: '2026-08-28' },
-        { colaborador: 'DIENY DOS SANTOS PINTO', empresa: 'LA CONSTRUÇOES', dataPerda: '2026-09-01' },
-        { colaborador: 'FRANCISCO FERREIRA BARBOSA', empresa: 'LA CONSTRUÇOES', dataPerda: '2026-09-03' },
-        { colaborador: 'ALEXANDRO JAIME DIAS DA SILVA', empresa: 'TECHNOFLUID', dataPerda: '2026-09-05' }
-      ]).slice(0, 5).map(r => [
+      linhasInadimplentes = perdidos.slice(0, 5).map(r => [
         r?.colaborador || 'Não identificado',
         r?.empresa || '-',
         r?.dataPerda || r?.dataLiberacao || '-'
@@ -359,7 +354,7 @@ export async function exportarRelatorioConsolidadoPdf({
     } else {
       const mapa = new Map();
       ocorrencias.forEach(o => {
-        const op = o?.operador || o?.vigilante || 'Op. Maria Conceição';
+        const op = o?.operador || o?.vigilante || 'Operador CCO';
         mapa.set(op, (mapa.get(op) || 0) + 1);
       });
       linhasProdutividade = Array.from(mapa.entries())
@@ -380,12 +375,7 @@ export async function exportarRelatorioConsolidadoPdf({
       ]);
     } else {
       const pends = provisorios.filter(p => p && (p.status === 'NAO_DEVOLVIDO' || p.situacao === 'NÃO DEVOLVIDO' || p.situacao === 'NAO_DEVOLVIDO'));
-      linhasPendentes = (pends.length > 0 ? pends : [
-        { colaborador: 'CARLOS HENRIQUE VIEIRA', portaria: 'P1', horaRetirada: '07:30', cartao: '05/P1' },
-        { colaborador: 'FABIO AUGUSTO PEREIRA', portaria: 'P2', horaRetirada: '06:45', cartao: '14/P2' },
-        { colaborador: 'MARCOS PAULO MENDES', portaria: 'P1', horaRetirada: '08:15', cartao: '08/P1' },
-        { colaborador: 'JULIANA LIMA FERREIRA', portaria: 'P2', horaRetirada: '07:50', cartao: '16/P2' }
-      ]).slice(0, 5).map(p => [
+      linhasPendentes = pends.slice(0, 5).map(p => [
         `${p?.colaborador || p?.nome || '-'} (${p?.cartao || ''})`,
         p?.portaria || 'P1',
         p?.horaRetirada || '-'
@@ -483,7 +473,7 @@ export async function exportarRelatorioConsolidadoPdf({
     const linhasOcorrencias = (ocorrencias.slice(0, 5)).map(o => [
       o?.numeroRO || 'RO-2026',
       `${o?.data || ''} ${o?.hora || ''}`.trim() || '-',
-      o?.local || (o?.predio ? `${o.predio} - ${o.area || ''}` : 'Site Ecoparque'),
+      o?.local || (o?.predio ? `${o.predio} - ${o.area || ''}` : 'Planta Operacional'),
       o?.gravidade || 'MÉDIA',
       o?.titulo || 'Ocorrência Operacional',
       o?.operador || 'Op. CCO'
@@ -561,12 +551,12 @@ export async function exportarRelatorioConsolidadoPdf({
 export async function exportarBaseConsolidadaExcel({
   periodoNome = 'Mês Atual (Setembro/2026)',
   filtros = {},
-  operador = 'Op. Maria Conceição',
+  operador = 'Op. Operador 01',
   dadosConsolidados = null
 } = {}) {
   try {
     const agoraStr = new Date().toLocaleString('pt-BR');
-    const nomeOperadorAtivo = operador || localStorage.getItem('cco_operador_ativo') || 'Op. Maria Conceição';
+    const nomeOperadorAtivo = operador || localStorage.getItem('cco_operador_ativo') || 'Op. Operador 01';
 
     const { 
       predio = 'TODOS', 
@@ -722,8 +712,8 @@ export async function exportarBaseConsolidadaExcel({
           'Qtd Envolvidos': Array.isArray(o?.envolvidos) ? o.envolvidos.length : 0,
           'Envolvidos': Array.isArray(o?.envolvidos) ? o.envolvidos.map(e => `${e?.nome || ''} (${e?.empresa || ''})`).join('; ') : '-',
           'Qtd Imagens': Array.isArray(o?.fotos) ? o.fotos.length : 0,
-          'Gerente Site': o?.responsaveis?.gerenteSite || 'Alcimara Silva',
-          'Fiscal Contrato': o?.responsaveis?.fiscalContrato || 'Roberta Santos'
+          'Gerente Site': o?.responsaveis?.gerenteSite || 'Gerência de Operações',
+          'Fiscal Contrato': o?.responsaveis?.fiscalContrato || 'Fiscalização de Contrato'
         }))
       : [{ 'Aviso': 'Nenhuma ocorrência registrada no período para os filtros selecionados.' }];
     const wsOcorrencias = XLSX.utils.json_to_sheet(dadosOcorrencias);

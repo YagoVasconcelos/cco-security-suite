@@ -24,12 +24,10 @@ import {
 } from '../../services/observacoesService';
 
 const VIGILANTES_PADRAO = [
-  'Vig. Ordiley Batista',
-  'Vig. Silva (P1)',
-  'Vig. Santos (P2)',
-  'Vig. Oliveira (Ronda)',
-  'Vig. Pereira (CCO)',
-  'Vig. Marcilene'
+  'Vigilante Portaria 1',
+  'Vigilante Portaria 2',
+  'Vigilante Ronda',
+  'Operador CCO'
 ];
 
 const MOTIVOS_INICIAIS = [
@@ -43,15 +41,8 @@ const MOTIVOS_INICIAIS = [
   'PARTICULAR / FAMILIAR'
 ];
 
-// Sugestões de anfitriões comuns para agilidade de digitação
-const SUGESTOES_ANFITRIOES = [
-  { nome: 'Alcimara Silva', setor: 'Gerência de Site Ecoparque' },
-  { nome: 'Ordiley Batista', setor: 'Coordenação de Segurança - SERVIS' },
-  { nome: 'Roberta Santos', setor: 'Fiscal de Contrato' },
-  { nome: 'Marcos Vinicius', setor: 'Engenharia de Manutenção' },
-  { nome: 'Camila Rodrigues', setor: 'Recursos Humanos / DP' },
-  { nome: 'Felipe Santana', setor: 'Operações Logísticas' }
-];
+// Sugestões de anfitriões cadastradas dinamicamente
+const SUGESTOES_ANFITRIOES = [];
 
 export default function NovoVisitanteModal({
   isOpen,

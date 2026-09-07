@@ -26,7 +26,7 @@ export default function App() {
     if (salvo && nomesAtivos.includes(salvo)) {
       return salvo;
     }
-    return nomesAtivos[0] || 'Op. Maria Conceição';
+    return nomesAtivos[0] || 'Op. Operador 01';
   });
 
   useEffect(() => {

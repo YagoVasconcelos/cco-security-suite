@@ -67,7 +67,7 @@ export default function ControleVisitantesView() {
   const [visitanteParaBaixa, setVisitanteParaBaixa] = useState(null);
   const [dataSaida, setDataSaida] = useState('');
   const [horaSaida, setHoraSaida] = useState('');
-  const [vigilanteSaida, setVigilanteSaida] = useState('Vig. Ordiley Batista');
+  const [vigilanteSaida, setVigilanteSaida] = useState('Vigilante Portaria 1');
 
   // Modal de Auditoria do Anfitrião (Histórico de visitas autorizadas por colaborador interno)
   const [detalhesAnfitriao, setDetalhesAnfitriao] = useState(null);
@@ -157,7 +157,7 @@ export default function ControleVisitantesView() {
     setVisitanteParaBaixa(item);
     setDataSaida(agora.toISOString().split('T')[0]);
     setHoraSaida(agora.toTimeString().split(' ')[0].substring(0, 5));
-    setVigilanteSaida('Vig. Ordiley Batista');
+    setVigilanteSaida('Vigilante Portaria 1');
   };
 
   // Confirmar saída / devolução da credencial com cálculo de tempo
@@ -652,11 +652,10 @@ export default function ControleVisitantesView() {
                 onChange={(e) => setVigilanteSaida(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
               >
-                <option value="Vig. Ordiley Batista">Vig. Ordiley Batista</option>
-                <option value="Vig. Silva (P1)">Vig. Silva (P1)</option>
-                <option value="Vig. Santos (P2)">Vig. Santos (P2)</option>
-                <option value="Vig. Oliveira (Ronda)">Vig. Oliveira (Ronda)</option>
-                <option value="Vig. Pereira (CCO)">Vig. Pereira (CCO)</option>
+                <option value="Vigilante Portaria 1">Vigilante Portaria 1</option>
+                <option value="Vigilante Portaria 2">Vigilante Portaria 2</option>
+                <option value="Vigilante Ronda">Vigilante Ronda</option>
+                <option value="Operador CCO">Operador CCO</option>
               </select>
             </div>
 

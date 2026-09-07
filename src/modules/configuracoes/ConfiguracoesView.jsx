@@ -1696,7 +1696,7 @@ export default function ConfiguracoesView({ onBloquear }) {
                     <Users className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-white">Gerente de Site "Ecoparque"</h3>
+                    <h3 className="font-bold text-sm text-white">Gerente de Operações / Site</h3>
                     <p className="text-[11px] text-slate-400">Aprovação Executiva Máxima</p>
                   </div>
                 </div>
@@ -1716,7 +1716,7 @@ export default function ConfiguracoesView({ onBloquear }) {
                     setFormResponsaveis({ ...formResponsaveis, gerenteSite: e.target.value });
                     setHouveAlteracaoResponsaveis(true);
                   }}
-                  placeholder="Ex: Alcimara Silva"
+                  placeholder="Ex: Nome do(a) Gerente Responsável"
                   className="w-full bg-slate-950 border border-slate-700 focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-semibold focus:outline-none transition-colors"
                   required
                 />
@@ -1755,7 +1755,7 @@ export default function ConfiguracoesView({ onBloquear }) {
                     setFormResponsaveis({ ...formResponsaveis, coordenacao: e.target.value });
                     setHouveAlteracaoResponsaveis(true);
                   }}
-                  placeholder="Ex: Ordiley Batista – Coordenador de segurança local - SERVIS"
+                  placeholder="Ex: Nome do(a) Coordenador(a) de Segurança"
                   className="w-full bg-slate-950 border border-slate-700 focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-semibold focus:outline-none transition-colors"
                   required
                 />
@@ -1794,7 +1794,7 @@ export default function ConfiguracoesView({ onBloquear }) {
                     setFormResponsaveis({ ...formResponsaveis, fiscalContrato: e.target.value });
                     setHouveAlteracaoResponsaveis(true);
                   }}
-                  placeholder="Ex: Roberta Santos"
+                  placeholder="Ex: Nome do(a) Fiscal de Contrato"
                   className="w-full bg-slate-950 border border-slate-700 focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-semibold focus:outline-none transition-colors"
                   required
                 />
@@ -1918,7 +1918,7 @@ export default function ConfiguracoesView({ onBloquear }) {
                   type="text"
                   value={formOperador.nome}
                   onChange={(e) => setFormOperador({ ...formOperador, nome: e.target.value })}
-                  placeholder="Ex: Op. Maria Conceição"
+                  placeholder="Ex: Op. Operador 01"
                   className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-100 font-semibold focus:outline-none"
                   required
                 />

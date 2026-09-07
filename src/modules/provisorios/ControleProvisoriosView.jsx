@@ -33,16 +33,7 @@ import {
   LIMITE_ACESSOS_MES
 } from '../../services/provisoriosService';
 
-const VIGILANTES_PADRAO = [
-  'Vig. Ordiley Batista',
-  'Vig. Silva (P1)',
-  'Vig. Santos (P2)',
-  'Vig. Oliveira (Ronda)',
-  'Vig. Pereira (CCO)',
-  'Vig. Marcilene',
-  'Vig. David',
-  'Vig. Jozimar Souza'
-];
+
 
 import {
   carregarObservacoes,
@@ -68,7 +59,7 @@ export default function ControleProvisoriosView() {
   const [registroParaBaixa, setRegistroParaBaixa] = useState(null);
   const [dataBaixa, setDataBaixa] = useState('');
   const [horaBaixa, setHoraBaixa] = useState('');
-  const [vigilanteRecebedor, setVigilanteRecebedor] = useState('Vig. Ordiley Batista');
+  const [vigilanteRecebedor, setVigilanteRecebedor] = useState('Vigilante Portaria 1');
 
   // Modal de Detalhes de Reincidência (Histórico dos acessos do colaborador no mês)
   const [detalhesColaborador, setDetalhesColaborador] = useState(null);
@@ -194,7 +185,7 @@ export default function ControleProvisoriosView() {
     setRegistroParaBaixa(item);
     setDataBaixa(agora.toISOString().split('T')[0]);
     setHoraBaixa(agora.toTimeString().split(' ')[0].substring(0, 5));
-    setVigilanteRecebedor('Vig. Ordiley Batista');
+    setVigilanteRecebedor('Vigilante Portaria 1');
   };
 
   // Confirmar baixa / devolução do cartão
@@ -711,11 +702,10 @@ export default function ControleProvisoriosView() {
                 onChange={(e) => setVigilanteRecebedor(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
               >
-                <option value="Vig. Ordiley Batista">Vig. Ordiley Batista</option>
-                <option value="Vig. Silva (P1)">Vig. Silva (P1)</option>
-                <option value="Vig. Santos (P2)">Vig. Santos (P2)</option>
-                <option value="Vig. Oliveira (Ronda)">Vig. Oliveira (Ronda)</option>
-                <option value="Vig. Pereira (CCO)">Vig. Pereira (CCO)</option>
+                <option value="Vigilante Portaria 1">Vigilante Portaria 1</option>
+                <option value="Vigilante Portaria 2">Vigilante Portaria 2</option>
+                <option value="Vigilante Ronda">Vigilante Ronda</option>
+                <option value="Operador CCO">Operador CCO</option>
               </select>
             </div>
 

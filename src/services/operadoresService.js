@@ -5,63 +5,23 @@ const STORAGE_KEY = 'cco_operadores_base';
 export const OPERADORES_INICIAIS = [
   {
     id: 'op-1',
-    nome: 'Op. Maria Conceição',
+    nome: 'Op. Operador 01',
     matricula: 'CCO-1001',
     cargo: 'Operador CCO',
     turno: '12x36 Diurno',
     status: 'Ativo',
-    observacoes: 'Operadora titular da mesa de monitoramento 01',
-    dataCadastro: '2026-01-10'
+    observacoes: 'Operador titular da mesa de monitoramento 01',
+    dataCadastro: '2026-01-01'
   },
   {
     id: 'op-2',
-    nome: 'Op. Ordiley Batista',
+    nome: 'Op. Operador 02',
     matricula: 'CCO-1002',
     cargo: 'Operador CCO Líder',
     turno: '12x36 Diurno',
     status: 'Ativo',
     observacoes: 'Líder operacional e coordenação de turno CCO',
-    dataCadastro: '2026-01-10'
-  },
-  {
-    id: 'op-3',
-    nome: 'Op. Carlos Eduardo',
-    matricula: 'CCO-1003',
-    cargo: 'Operador CCO',
-    turno: '12x36 Noturno',
-    status: 'Ativo',
-    observacoes: 'Especialista em radiocomunicação e CFTV',
-    dataCadastro: '2026-01-15'
-  },
-  {
-    id: 'op-4',
-    nome: 'Op. Fabiana Mendes',
-    matricula: 'CCO-1004',
-    cargo: 'Operador CCO',
-    turno: '12x36 Noturno',
-    status: 'Ativo',
-    observacoes: 'Atendimento a ocorrências perimetrais e controles de acesso',
-    dataCadastro: '2026-01-20'
-  },
-  {
-    id: 'op-5',
-    nome: 'Op. Lucas Alcantara',
-    matricula: 'CCO-1005',
-    cargo: 'Operador CCO',
-    turno: '12x36 Diurno',
-    status: 'Ativo',
-    observacoes: 'Apoio a emissão de relatórios executivos',
-    dataCadastro: '2026-02-01'
-  },
-  {
-    id: 'op-6',
-    nome: 'Op. Juliana Ribeiro',
-    matricula: 'CCO-1006',
-    cargo: 'Operador CCO',
-    turno: '12x36 Noturno',
-    status: 'Ativo',
-    observacoes: 'Triagem de alarmes e controle de visitantes',
-    dataCadastro: '2026-02-05'
+    dataCadastro: '2026-01-01'
   }
 ];
 
@@ -73,7 +33,7 @@ export async function carregarOperadores() {
     const res = await fetch('/api/operadores');
     if (res.ok) {
       const dados = await res.json();
-      if (Array.isArray(dados) && dados.length > 0) {
+      if (Array.isArray(dados)) {
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
         } catch (e) {
@@ -89,9 +49,9 @@ export async function carregarOperadores() {
   // Fallback para localStorage
   try {
     const salvo = localStorage.getItem(STORAGE_KEY);
-    if (salvo) {
+    if (salvo !== null) {
       const parsed = JSON.parse(salvo);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
@@ -113,9 +73,9 @@ export async function carregarOperadores() {
 export function obterOperadoresCache() {
   try {
     const salvo = localStorage.getItem(STORAGE_KEY);
-    if (salvo) {
+    if (salvo !== null) {
       const parsed = JSON.parse(salvo);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }

@@ -276,14 +276,10 @@ export function ccoApiPlugin() {
               }
             }
 
-            if (!Array.isArray(lista) || lista.length === 0) {
+            if (!Array.isArray(lista)) {
               lista = [
-                { id: 'op-1', nome: 'Op. Maria Conceição', matricula: 'CCO-1001', cargo: 'Operador CCO', turno: '12x36 Diurno A', status: 'Ativo', dataCadastro: '2026-01-10' },
-                { id: 'op-2', nome: 'Op. Ordiley Batista', matricula: 'CCO-1002', cargo: 'Operador CCO Líder', turno: '12x36 Diurno B', status: 'Ativo', dataCadastro: '2026-01-10' },
-                { id: 'op-3', nome: 'Op. Carlos Eduardo', matricula: 'CCO-1003', cargo: 'Operador CCO', turno: '12x36 Noturno A', status: 'Ativo', dataCadastro: '2026-01-15' },
-                { id: 'op-4', nome: 'Op. Fabiana Mendes', matricula: 'CCO-1004', cargo: 'Operador CCO', turno: '12x36 Noturno B', status: 'Ativo', dataCadastro: '2026-01-20' },
-                { id: 'op-5', nome: 'Op. Lucas Alcantara', matricula: 'CCO-1005', cargo: 'Operador CCO', turno: '12x36 Diurno A', status: 'Ativo', dataCadastro: '2026-02-01' },
-                { id: 'op-6', nome: 'Op. Juliana Ribeiro', matricula: 'CCO-1006', cargo: 'Operador CCO', turno: '12x36 Noturno A', status: 'Ativo', dataCadastro: '2026-02-05' }
+                { id: 'op-1', nome: 'Op. Operador 01', matricula: 'CCO-1001', cargo: 'Operador CCO', turno: '12x36 Diurno', status: 'Ativo', dataCadastro: '2026-01-01' },
+                { id: 'op-2', nome: 'Op. Operador 02', matricula: 'CCO-1002', cargo: 'Operador CCO Líder', turno: '12x36 Diurno', status: 'Ativo', dataCadastro: '2026-01-01' }
               ];
             }
 
@@ -692,9 +688,9 @@ export function ccoApiPlugin() {
 
             if (!responsaveis || typeof responsaveis !== 'object') {
               responsaveis = {
-                gerenteSite: 'Alcimara Silva',
-                coordenacao: 'Ordiley Batista – Coordenador de segurança local - SERVIS',
-                fiscalContrato: 'Roberta Santos',
+                gerenteSite: 'Gerência de Operações',
+                coordenacao: 'Coordenação de Segurança Corporativa',
+                fiscalContrato: 'Fiscalização de Contrato',
                 caminhoRede: 'MAPA DE CALOR/2026/09.SETEMBRO'
               };
               fs.writeFileSync(dataJsonPath, JSON.stringify(responsaveis, null, 2), 'utf-8');
@@ -733,9 +729,9 @@ export function ccoApiPlugin() {
             const rootJsonPath = path.join(rootDir, 'responsaveis.json');
 
             const dadosSalvar = {
-              gerenteSite: body.gerenteSite || 'Alcimara Silva',
-              coordenacao: body.coordenacao || 'Ordiley Batista – Coordenador de segurança local - SERVIS',
-              fiscalContrato: body.fiscalContrato || 'Roberta Santos',
+              gerenteSite: body.gerenteSite || 'Gerência de Operações',
+              coordenacao: body.coordenacao || 'Coordenação de Segurança Corporativa',
+              fiscalContrato: body.fiscalContrato || 'Fiscalização de Contrato',
               caminhoRede: body.caminhoRede || 'MAPA DE CALOR/2026/09.SETEMBRO',
               atualizadoEm: new Date().toISOString()
             };

@@ -65,7 +65,7 @@ export default function RelatorioOcorrenciaForm() {
   const [formData, setFormData] = useState(() => {
     const operadorSalvo = localStorage.getItem('cco_operador_ativo');
     const nomes = obterNomesOperadoresAtivos();
-    const opInicial = (operadorSalvo && nomes.includes(operadorSalvo)) ? operadorSalvo : (nomes[0] || 'Op. Maria Conceição');
+    const opInicial = (operadorSalvo && nomes.includes(operadorSalvo)) ? operadorSalvo : (nomes[0] || 'Op. Operador 01');
 
     return {
       numeroRO: `RO-2026-${String(Math.floor(Math.random() * 900) + 100)}`,
@@ -326,7 +326,7 @@ export default function RelatorioOcorrenciaForm() {
       gravidade: oc.gravidade || 'Média',
       titulo: oc.titulo || '',
       descricao: oc.descricao || '',
-      operador: oc.operador || (oc.responsaveis && oc.responsaveis.operador) || listaOperadores[0] || 'Op. Maria Conceição'
+      operador: oc.operador || (oc.responsaveis && oc.responsaveis.operador) || listaOperadores[0] || 'Op. Operador 01'
     });
     setEnvolvidos(oc.envolvidos && oc.envolvidos.length > 0 ? oc.envolvidos : [{
       id: Date.now(),
@@ -350,7 +350,7 @@ export default function RelatorioOcorrenciaForm() {
   // Ações de Botões
   const limparFormulario = () => {
     if (window.confirm('Deseja realmente limpar todos os campos preenchidos?')) {
-      const opAtual = localStorage.getItem('cco_operador_ativo') || listaOperadores[0] || 'Op. Maria Conceição';
+      const opAtual = localStorage.getItem('cco_operador_ativo') || listaOperadores[0] || 'Op. Operador 01';
       setFormData({
         numeroRO: `RO-2026-${String(Math.floor(Math.random() * 900) + 100)}`,
         data: todayStr,
@@ -402,7 +402,7 @@ export default function RelatorioOcorrenciaForm() {
 
     setIsSalvando(true);
     try {
-      const operadorResponsavel = formData.operador || localStorage.getItem('cco_operador_ativo') || listaOperadores[0] || 'Op. Maria Conceição';
+      const operadorResponsavel = formData.operador || localStorage.getItem('cco_operador_ativo') || listaOperadores[0] || 'Op. Operador 01';
       const resultado = await salvarRelatorioOcorrenciaCompleto({
         formData: {
           ...formData,
@@ -428,7 +428,7 @@ export default function RelatorioOcorrenciaForm() {
   };
 
   const iniciarNovoRelatorio = () => {
-    const opAtual = localStorage.getItem('cco_operador_ativo') || listaOperadores[0] || 'Op. Maria Conceição';
+    const opAtual = localStorage.getItem('cco_operador_ativo') || listaOperadores[0] || 'Op. Operador 01';
     setFormData({
       numeroRO: `RO-2026-${String(Math.floor(Math.random() * 900) + 100)}`,
       data: todayStr,
@@ -877,7 +877,7 @@ export default function RelatorioOcorrenciaForm() {
                       <input
                         type="text"
                         disabled={pessoa.naoIdentificado}
-                        placeholder="Ex: Servis, Logística ABC"
+                        placeholder="Ex: Prestador de Serviços, Logística ABC"
                         value={pessoa.empresa}
                         onChange={(e) => atualizarEnvolvido(pessoa.id, 'empresa', e.target.value)}
                         className={`w-full bg-slate-950 border rounded-md px-2.5 py-1.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 ${

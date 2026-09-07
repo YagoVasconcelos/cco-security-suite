@@ -7,9 +7,9 @@
  */
 
 export const PADRAO_RESPONSAVEIS = {
-  gerenteSite: 'Alcimara Silva',
-  coordenacao: 'Ordiley Batista – Coordenador de segurança local - SERVIS',
-  fiscalContrato: 'Roberta Santos',
+  gerenteSite: 'Gerência de Operações',
+  coordenacao: 'Coordenação de Segurança Corporativa',
+  fiscalContrato: 'Fiscalização de Contrato',
   caminhoRede: 'MAPA DE CALOR/2026/09.SETEMBRO'
 };
 

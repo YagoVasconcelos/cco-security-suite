@@ -62,9 +62,9 @@ export function calcularDuracaoPermanencia(dataRet, horaRet, dataDev, horaDev) {
 export function carregarRegistros() {
   try {
     const dadosSalvos = localStorage.getItem(STORAGE_KEY);
-    if (dadosSalvos) {
+    if (dadosSalvos !== null) {
       const parsed = JSON.parse(dadosSalvos);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
@@ -72,9 +72,10 @@ export function carregarRegistros() {
     console.error('Erro ao ler do localStorage:', err);
   }
 
-  // Se não existir no localStorage, inicia com os registros da base padrão
-  salvarRegistros(dadosIniciaisJson);
-  return dadosIniciaisJson;
+  // Se não existir no localStorage, inicia com os registros da base padrão (vazia)
+  const inicial = Array.isArray(databaseTemplate.provisorios) ? databaseTemplate.provisorios : [];
+  salvarRegistros(inicial);
+  return inicial;
 }
 
 /**

@@ -93,7 +93,7 @@ export default function NovoCartaoRfidModal({ isOpen, onClose, onSalvar, rfidExi
       codigoImpresso: codigoImpresso.trim(),
       tipo: tipoCartao,
       numeroRotativoIdx: rotativoIdxNum,
-      numeroRotativo: tipoCartao === 'ROTATIVO' ? (rotativoIdxNum !== null ? `CSN SERVIÇOS ${String(rotativoIdxNum).padStart(2, '0')}` : 'ROTATIVO') : null,
+      numeroRotativo: tipoCartao === 'ROTATIVO' ? (rotativoIdxNum !== null ? `ROTATIVO ${String(rotativoIdxNum).padStart(2, '0')}` : 'ROTATIVO') : null,
       colaborador: nomeColaborador.trim().toUpperCase() || (tipoCartao === 'ROTATIVO' ? 'DISPONÍVEL NO ESTOQUE' : 'NÃO INFORMADO'),
       empresa: empresa.trim().toUpperCase(),
       dataLiberacao,
@@ -198,7 +198,7 @@ export default function NovoCartaoRfidModal({ isOpen, onClose, onSalvar, rfidExi
                   <span className="text-[11px] text-slate-400">Ex: 00, 01, 15, 350</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-slate-400">CSN SERVIÇOS</span>
+                  <span className="text-xs font-mono text-slate-400">ROTATIVO</span>
                   <input
                     type="number"
                     min="0"
@@ -324,7 +324,7 @@ export default function NovoCartaoRfidModal({ isOpen, onClose, onSalvar, rfidExi
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: NATURA, SERVIS, CSN..."
+                  placeholder="Ex: PRESTADOR, TERCEIRO, FORNECEDOR..."
                   value={empresa}
                   onChange={(e) => setEmpresa(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 uppercase"

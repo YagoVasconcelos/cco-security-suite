@@ -5,27 +5,10 @@ const STORAGE_KEY = 'cco_rfid_inventario';
 export const CAPACIDADE_ROTATIVOS = 350;
 
 function gerarInventarioInicial() {
-  if (Array.isArray(databaseTemplate.rfid) && databaseTemplate.rfid.length > 0) {
+  if (Array.isArray(databaseTemplate.rfid)) {
     return databaseTemplate.rfid;
   }
-  const lista = [];
-  for (let i = 0; i <= CAPACIDADE_ROTATIVOS; i++) {
-    const numFmt = String(i).padStart(2, '0');
-    lista.push({
-      id: i + 1,
-      codigoRfid: `RFID-${numFmt}`,
-      codigoImpresso: `${10000 + i}`,
-      tipo: 'ROTATIVO',
-      numeroRotativo: `CSN SERVIÇOS ${numFmt}`,
-      numeroRotativoIdx: i,
-      colaborador: 'DISPONÍVEL NO ESTOQUE',
-      empresa: 'ESTOQUE CENTRAL',
-      dataLiberacao: '2026-01-01',
-      status: 'DISPONIVEL',
-      observacoes: 'Cartão disponível no estoque'
-    });
-  }
-  return lista;
+  return [];
 }
 
 const dadosIniciaisJson = gerarInventarioInicial();
@@ -43,9 +26,9 @@ export function normalizar(str = '') {
 export function carregarInventarioRfid() {
   try {
     const dadosSalvos = localStorage.getItem(STORAGE_KEY);
-    if (dadosSalvos) {
+    if (dadosSalvos !== null) {
       const parsed = JSON.parse(dadosSalvos);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
@@ -53,8 +36,9 @@ export function carregarInventarioRfid() {
     console.error('Erro ao ler inventário RFID do localStorage:', err);
   }
 
-  salvarInventarioRfid(dadosIniciaisJson);
-  return dadosIniciaisJson;
+  const inicial = Array.isArray(databaseTemplate.rfid) ? databaseTemplate.rfid : [];
+  salvarInventarioRfid(inicial);
+  return inicial;
 }
 
 /**
@@ -83,7 +67,7 @@ export function calcularMetricasRfid(cartoes, mesReferencia) {
   const totalExtravios = totalPerdidos + totalPagos;
   const taxaRessarcimento = totalExtravios > 0 
     ? Math.round((totalPagos / totalExtravios) * 100) 
-    : 100;
+    : 0;
   const pendenteCobranca = totalPerdidos; // Aguardando ressarcimento
 
   // 3. Rotativos Devolvidos & Reidratados / Disponíveis (Intervalo 0 a 350)
@@ -155,7 +139,7 @@ export function adicionarCartaoRfid(cartoes, novo) {
         throw new Error(`Para cartões rotativos, o número deve estar no intervalo oficial de 0 a ${CAPACIDADE_ROTATIVOS}.`);
       }
       numeroRotativoIdx = num;
-      numeroRotativoFinal = `CSN SERVIÇOS ${String(num).padStart(2, '0')}`;
+      numeroRotativoFinal = `ROTATIVO ${String(num).padStart(2, '0')}`;
     } else {
       numeroRotativoFinal = novo.numeroRotativo || 'ROTATIVO';
     }

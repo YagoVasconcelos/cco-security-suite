@@ -19,14 +19,10 @@ import {
 import { verificarRegraTresAcessos, formatarDataBr } from '../../services/provisoriosService';
 
 const VIGILANTES_PADRAO = [
-  'Vig. Ordiley Batista',
-  'Vig. Silva (P1)',
-  'Vig. Santos (P2)',
-  'Vig. Oliveira (Ronda)',
-  'Vig. Pereira (CCO)',
-  'Vig. Marcilene',
-  'Vig. David',
-  'Vig. Jozimar Souza'
+  'Vigilante Portaria 1',
+  'Vigilante Portaria 2',
+  'Vigilante Ronda',
+  'Operador CCO'
 ];
 
 import { 
@@ -375,7 +371,7 @@ export default function NovaSaidaModal({
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Natura, Albert Einstein"
+                  placeholder="Ex: Prestador, Fornecedor..."
                   value={empresa}
                   onChange={(e) => setEmpresa(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"

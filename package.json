@@ -1,12 +1,93 @@
 {
   "name": "cco-security-suite",
-  "private": true,
+  "productName": "CCO Security Suite",
   "version": "1.0.0",
+  "description": "Central de Controle Operacional - Plataforma Integrada de Inteligência de Segurança",
+  "author": {
+    "name": "TecPrimus Soluções Tecnológicas",
+    "email": "tecprimus2021@outlook.com"
+  },
+  "private": true,
+  "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "clean:dist": "node scripts/clean-dist.cjs",
+    "clean:data": "node scripts/clean-data.cjs",
+    "generate:icon": "electron scripts/generate-icon.cjs",
+    "generate:docs-pdf": "electron scripts/generate-pdf-docs.cjs",
+    "build:pdf": "electron scripts/build-manual-pdf.cjs",
+    "prebuild:exe": "npm run clean:dist && npm run clean:data && npm run generate:icon",
+    "electron:dev": "concurrently -k \"vite\" \"wait-on tcp:3000 && electron . --dev\"",
+    "electron:start": "electron .",
+    "build:exe": "npm run clean:dist && npm run clean:data && npm run generate:icon && vite build && electron-builder --win nsis",
+    "build:portable": "npm run clean:dist && npm run clean:data && npm run generate:icon && vite build && electron-builder --win portable",
+    "build:all": "npm run clean:dist && npm run clean:data && npm run generate:icon && vite build && electron-builder --win nsis portable"
+  },
+  "build": {
+    "appId": "com.tecprimus.ccosecuritysuite",
+    "productName": "CCO Security Suite",
+    "copyright": "Copyright © 2026 TecPrimus Soluções Tecnológicas",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist-react/**/*",
+      "electron/**/*",
+      "build/**/*",
+      "public/**/*",
+      "data/database_template.json",
+      "templates/**/*",
+      "package.json",
+      "!**/*.xlsx",
+      "!**/*.csv",
+      "!exports/**/*",
+      "!MAPA DE CALOR/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "templates",
+        "to": "templates"
+      },
+      {
+        "from": "data/database_template.json",
+        "to": "data/database_template.json"
+      }
+    ],
+    "win": {
+      "icon": "public/shield.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "artifactName": "${productName} Setup ${version}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "CCO Security Suite",
+      "uninstallDisplayName": "CCO Security Suite",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "public/shield.ico",
+      "uninstallerIcon": "public/shield.ico"
+    },
+    "portable": {
+      "artifactName": "${productName} Portable ${version}.${ext}"
+    }
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -21,8 +102,13 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^10.0.5",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
+    "marked": "^18.0.12",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
-    "vite": "^6.1.0"
+    "vite": "^6.1.0",
+    "wait-on": "^9.1.0"
   }
 }

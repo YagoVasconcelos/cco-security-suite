@@ -53,9 +53,9 @@ export function calcularPermanenciaVisitante(dataEntrada, horaEntrada, dataSaida
 export function carregarVisitantes() {
   try {
     const dadosSalvos = localStorage.getItem(STORAGE_KEY);
-    if (dadosSalvos) {
+    if (dadosSalvos !== null) {
       const parsed = JSON.parse(dadosSalvos);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
@@ -63,8 +63,9 @@ export function carregarVisitantes() {
     console.error('Erro ao ler do localStorage:', err);
   }
 
-  salvarVisitantes(dadosIniciaisJson);
-  return dadosIniciaisJson;
+  const inicial = Array.isArray(databaseTemplate.visitantes) ? databaseTemplate.visitantes : [];
+  salvarVisitantes(inicial);
+  return inicial;
 }
 
 /**

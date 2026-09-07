@@ -59,31 +59,11 @@ import { carregarRegistros as carregarRegistrosProvisorios } from '../../service
 import { carregarVisitantes } from '../../services/visitantesService';
 import { carregarInventarioRfid } from '../../services/rfidService';
 
-// Matriz inicial de ocorrências pré-carregadas distribuídas por todo o site
-const OCORRENCIAS_SEEDS = [
-  { id: 101, numeroRO: 'RO-2026-101', data: '2026-09-02', hora: '08:15', predio: 'COMPOSTAGEM', area: 'PÁTIO / CIRCULAÇÃO', topico: 'ARRASTA PALHETE', gravidade: 'Média', titulo: 'Arrasta palhete danificando canaleta de drenagem', operador: 'Op. Maria Conceição' },
-  { id: 102, numeroRO: 'RO-2026-102', data: '2026-09-02', hora: '10:30', predio: 'FABRICA', area: 'LINHA DE PRODUÇÃO', topico: 'NÃO UTILIZAÇÃO DE EPI', gravidade: 'Alta', titulo: 'Colaborador sem óculos de proteção na prensa', operador: 'Op. Carlos Eduardo' },
-  { id: 103, numeroRO: 'RO-2026-103', data: '2026-09-03', hora: '14:20', predio: 'PORTARIA 1 (P1)', area: 'EXTERNA / PERÍMETRO', topico: 'QUEBRA DE ACESSO', gravidade: 'Crítica', titulo: 'Tentativa de transposição de catraca sem liberação', operador: 'Op. Maria Conceição' },
-  { id: 104, numeroRO: 'RO-2026-104', data: '2026-09-03', hora: '16:45', predio: 'RESTAURANTE (SODEXO)', area: 'REFEITÓRIO / CONVIVÊNCIA', topico: 'ALIMENTO', gravidade: 'Baixa', titulo: 'Descarte de alimentos fora da lixeira orgânica', operador: 'Op. Daiane Lima' },
-  { id: 105, numeroRO: 'RO-2026-105', data: '2026-09-04', hora: '09:00', predio: 'DOCAS', area: 'CARGA E DESCARGA / DOCAS', topico: 'DANOS PATRIMONIAIS', gravidade: 'Média', titulo: 'Caminhão encostou na mureta de proteção da doca 3', operador: 'Op. Carlos Eduardo' },
-  { id: 106, numeroRO: 'RO-2026-106', data: '2026-09-04', hora: '11:10', predio: 'BIORREFINARIA', area: 'INTERNA / OPERACIONAL', topico: 'USO DE CELULAR INDEVIDO', gravidade: 'Baixa', titulo: 'Uso de aparelho celular em área industrial classificada', operador: 'Op. Fernando Souza' },
-  { id: 107, numeroRO: 'RO-2026-107', data: '2026-09-05', hora: '13:50', predio: 'ADM', area: 'ESCRITÓRIOS / ADM', topico: 'DESVIO DE CONDUTA', gravidade: 'Alta', titulo: 'Discussão acalorada entre prestadores de serviço', operador: 'Op. Maria Conceição' },
-  { id: 108, numeroRO: 'RO-2026-108', data: '2026-09-05', hora: '15:30', predio: 'CALDEIRA', area: 'CASA DE MÁQUINAS / SUBESTAÇÃO', topico: 'ACIDENTE', gravidade: 'Crítica', titulo: 'Vazamento térmico com acionamento do alarme', operador: 'Op. Carlos Eduardo' },
-  { id: 109, numeroRO: 'RO-2026-109', data: '2026-09-06', hora: '07:45', predio: 'HALL FABRICA', area: 'PÁTIO / CIRCULAÇÃO', topico: 'FONES DE OUVIDO', gravidade: 'Baixa', titulo: 'Colaborador transitando com fones de ouvido na faixa de pedestres', operador: 'Op. Daiane Lima' },
-  { id: 110, numeroRO: 'RO-2026-110', data: '2026-09-06', hora: '12:00', predio: 'GDM 1', area: 'ALMOXARIFADO / ESTOQUE', topico: 'FURTO', gravidade: 'Alta', titulo: 'Falta de ferramenta catalogada no estoque intermediário', operador: 'Op. Maria Conceição' },
-  { id: 111, numeroRO: 'RO-2026-111', data: '2026-09-07', hora: '14:15', predio: 'GDM 2', area: 'ALMOXARIFADO / ESTOQUE', topico: 'ERGONOMIA', gravidade: 'Média', titulo: 'Empilhamento irregular de caixas acima da altura recomendada', operador: 'Op. Carlos Eduardo' },
-  { id: 112, numeroRO: 'RO-2026-112', data: '2026-09-07', hora: '16:00', predio: 'ESPAÇO SAUDE', area: 'INTERNA / OPERACIONAL', topico: 'AMBULANCIA', gravidade: 'Média', titulo: 'Acionamento de ambulância para atendimento clínico de mal-estar', operador: 'Op. Daiane Lima' },
-  { id: 113, numeroRO: 'RO-2026-113', data: '2026-09-08', hora: '08:30', predio: 'LABORATORIO QUALIDADE', area: 'INTERNA / OPERACIONAL', topico: 'QUEBRA DE PROCEDIMENTO', gravidade: 'Alta', titulo: 'Acesso a laboratório de reagentes sem preenchimento de livro', operador: 'Op. Maria Conceição' },
-  { id: 114, numeroRO: 'RO-2026-114', data: '2026-09-08', hora: '10:40', predio: 'UTILIDADES', area: 'CASA DE MÁQUINAS / SUBESTAÇÃO', topico: 'QUASE ACIDENTE (Q.A)', gravidade: 'Alta', titulo: 'Quase contato com cabo elétrico em manutenção', operador: 'Op. Fernando Souza' },
-  { id: 115, numeroRO: 'RO-2026-115', data: '2026-09-09', hora: '11:25', predio: 'TANCAGEM', area: 'EXTERNA / PERÍMETRO', topico: 'USO INDEVIDO DE EPI', gravidade: 'Média', titulo: 'Luvas inadequadas para manipulação de conexões', operador: 'Op. Maria Conceição' },
-  { id: 116, numeroRO: 'RO-2026-116', data: '2026-09-09', hora: '13:10', predio: 'RESIDUOS', area: 'EXTERNA / PERÍMETRO', topico: 'DESCARTE INDEVIDO', gravidade: 'Média', titulo: 'Descarte de plástico contaminado na caçamba de recicláveis', operador: 'Op. Carlos Eduardo' },
-  { id: 117, numeroRO: 'RO-2026-117', data: '2026-09-10', hora: '15:00', predio: 'PORTARIA 2 (P2)', area: 'CARGA E DESCARGA / DOCAS', topico: 'QUEBRA DE PROCEDIMENTO', gravidade: 'Média', titulo: 'Motorista desceu da cabine sem colete refletivo', operador: 'Op. Daiane Lima' },
-  { id: 118, numeroRO: 'RO-2026-118', data: '2026-09-10', hora: '17:20', predio: 'COMPOSTAGEM', area: 'PÁTIO / CIRCULAÇÃO', topico: 'ERGONOMIA', gravidade: 'Baixa', titulo: 'Postura inadequada no carregamento manual de sacos', operador: 'Op. Maria Conceição' }
-];
+
 
 export default function DashboardExecutivoView({ 
   onNavigate,
-  operadorAtivo = 'Op. Maria Conceição',
+  operadorAtivo = 'Op. Operador 01',
   onChangeOperador
 }) {
   const [listaOperadores, setListaOperadores] = useState(() => {
@@ -218,10 +198,10 @@ export default function DashboardExecutivoView({
       const salvo = localStorage.getItem('cco_ocorrencias_dados');
       if (salvo) {
         const parsed = JSON.parse(salvo);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
-    return OCORRENCIAS_SEEDS;
+    return [];
   });
 
   useEffect(() => {
@@ -229,10 +209,10 @@ export default function DashboardExecutivoView({
     const carregar = async () => {
       try {
         const dados = await carregarOcorrencias();
-        if (montado && Array.isArray(dados) && dados.length > 0) {
+        if (montado && Array.isArray(dados)) {
           setOcorrenciasSalvas(dados.map(o => ({
             ...o,
-            predio: o.predio || (o.local && o.local.split(' - ')[0]) || 'Site Ecoparque',
+            predio: o.predio || (o.local && o.local.split(' - ')[0]) || 'Geral',
             area: o.area || (o.local && o.local.includes(' - ') ? o.local.split(' - ')[1] : 'Área Geral'),
             topico: o.topico || 'USO INDEVIDO DE EPI'
           })));
@@ -376,26 +356,8 @@ export default function DashboardExecutivoView({
     const lista = Array.from(mapa.values())
       .sort((a, b) => b.totalAcessos - a.totalAcessos);
 
-    if (lista.length > 0) {
-      return lista.slice(0, 5);
-    }
-
-    // Fallback contextualizado se o storage local tiver apenas registros antigos
-    return [
-      { nome: 'REILLESON FERREIRA COSTA', empresa: 'PROATIVA', totalAcessos: 4 },
-      { nome: 'EMERSON RAFAEL SILVA DE SOUZA', empresa: 'PROATIVA', totalAcessos: 3 },
-      { nome: 'CARLOS HENRIQUE VIEIRA', empresa: 'PROATIVA', totalAcessos: 2 },
-      { nome: 'ARIANE ROBERTA ROCHA ARAUJO', empresa: 'ADECCO', totalAcessos: 2 },
-      { nome: 'JUVANILDO GOMES PINHEIRO', empresa: 'SERVIS', totalAcessos: 1 }
-    ].filter(item => {
-      if (filtroEmpresa !== 'TODAS') {
-        const emp = item.empresa.toUpperCase();
-        const fEmp = filtroEmpresa.toUpperCase();
-        return emp.includes(fEmp) || fEmp.includes(emp);
-      }
-      return true;
-    });
-  }, [provisoriosFiltrados, filtroEmpresa]);
+    return lista.slice(0, 5);
+  }, [provisoriosFiltrados]);
 
   // 2. Inadimplência de Credenciais (Perdidos não pagos)
   // Colunas: Nome, Empresa, Data da Perda
@@ -405,26 +367,14 @@ export default function DashboardExecutivoView({
       return perdidosNaoPagos.slice(0, 5).map(r => ({
         id: r.id || r.codigoRfid,
         nome: r.colaborador || 'PORTADOR NÃO IDENTIFICADO',
-        empresa: r.empresa || 'LA CONSTRUÇOES',
-        dataPerda: r.dataPerda || r.dataLiberacao || '2026-09-01',
+        empresa: r.empresa || 'TERCEIRO',
+        dataPerda: r.dataPerda || r.dataLiberacao || '2026-01-01',
         cartao: r.tipo === 'ROTATIVO' ? (r.numeroRotativo || `Rotativo ${r.numeroRotativoIdx || ''}`) : (r.codigoImpresso || 'Fixo Nominal')
       }));
     }
 
-    return [
-      { id: 'p1', nome: 'ELIAS NICACIO SANTOS', empresa: 'CIA HVAC ENGENHARIA', dataPerda: '2026-08-28', cartao: 'CSN SERVIÇOS 03' },
-      { id: 'p2', nome: 'DIENY DOS SANTOS PINTO', empresa: 'LA CONSTRUÇOES', dataPerda: '2026-09-01', cartao: 'CSN SERVIÇOS 05' },
-      { id: 'p3', nome: 'FRANCISCO FERREIRA BARBOSA', empresa: 'LA CONSTRUÇOES', dataPerda: '2026-09-03', cartao: 'CSN SERVIÇOS 17' },
-      { id: 'p4', nome: 'ALEXANDRO JAIME DIAS DA SILVA', empresa: 'TECHNOFLUID', dataPerda: '2026-09-05', cartao: 'CSN SERVIÇOS 19' }
-    ].filter(item => {
-      if (filtroEmpresa !== 'TODAS') {
-        const emp = item.empresa.toUpperCase();
-        const fEmp = filtroEmpresa.toUpperCase();
-        return emp.includes(fEmp) || fEmp.includes(emp);
-      }
-      return true;
-    });
-  }, [rfidFiltrados, filtroEmpresa]);
+    return [];
+  }, [rfidFiltrados]);
 
   // 3. Produtividade CCO (Ocorrências)
   // Colunas: Operador CCO, Total de ROs Emitidos
@@ -435,7 +385,7 @@ export default function DashboardExecutivoView({
     });
 
     ocorrenciasFiltradas.forEach((o, idx) => {
-      const op = o.operador || o.vigilante || (listaOperadores[idx % (listaOperadores.length || 1)]) || 'Op. Maria Conceição';
+      const op = o.operador || o.vigilante || (listaOperadores[idx % (listaOperadores.length || 1)]) || 'Operador CCO';
       const atual = mapa.get(op) || 0;
       mapa.set(op, atual + 1);
     });
@@ -466,26 +416,14 @@ export default function DashboardExecutivoView({
         id: p.id || p.cartao,
         nome: p.colaborador || p.nome || '-',
         portaria: p.portaria || 'P1',
-        horaRetirada: p.horaRetirada || '07:30',
+        horaRetirada: p.horaRetirada || '00:00',
         cartao: p.cartao || '-',
         empresa: p.empresa || '-'
       }));
     }
 
-    return [
-      { id: 'pend1', nome: 'CARLOS HENRIQUE VIEIRA', portaria: 'P1', horaRetirada: '07:30', cartao: '05/P1', empresa: 'PROATIVA' },
-      { id: 'pend2', nome: 'FABIO AUGUSTO PEREIRA', portaria: 'P2', horaRetirada: '06:45', cartao: '14/P2', empresa: 'SERVIS' },
-      { id: 'pend3', nome: 'MARCOS PAULO MENDES', portaria: 'P1', horaRetirada: '08:15', cartao: '08/P1', empresa: 'SODEXO' },
-      { id: 'pend4', nome: 'JULIANA LIMA FERREIRA', portaria: 'P2', horaRetirada: '07:50', cartao: '16/P2', empresa: 'ADECCO' }
-    ].filter(item => {
-      if (filtroEmpresa !== 'TODAS') {
-        const emp = item.empresa.toUpperCase();
-        const fEmp = filtroEmpresa.toUpperCase();
-        return emp.includes(fEmp) || fEmp.includes(emp);
-      }
-      return true;
-    });
-  }, [provisoriosFiltrados, filtroEmpresa]);
+    return [];
+  }, [provisoriosFiltrados]);
 
   const provisoriosPendentes = provisoriosFiltrados.filter(p => 
     p.situacao === 'NÃO DEVOLVIDO' || 
@@ -493,17 +431,17 @@ export default function DashboardExecutivoView({
     p.status === 'NAO_DEVOLVIDO' || 
     p.status === 'Pendente'
   );
-  const totalPendentes = provisoriosPendentes.length > 0 ? provisoriosPendentes.length : tabelaPendentes.length;
-  const pendentesP1 = provisoriosPendentes.filter(p => p.portaria === 'P1').length || tabelaPendentes.filter(p => p.portaria === 'P1').length;
-  const pendentesP2 = provisoriosPendentes.filter(p => p.portaria === 'P2').length || tabelaPendentes.filter(p => p.portaria === 'P2').length;
+  const totalPendentes = provisoriosPendentes.length;
+  const pendentesP1 = provisoriosPendentes.filter(p => p.portaria === 'P1').length;
+  const pendentesP2 = provisoriosPendentes.filter(p => p.portaria === 'P2').length;
 
   const reincidentes = tabelaReincidentes.filter(r => r.totalAcessos >= 3);
   const taxaReincidencia = provisoriosFiltrados.length > 0
     ? ((reincidentes.length / provisoriosFiltrados.length) * 100).toFixed(1)
-    : '11.8';
+    : '0.0';
 
-  const rfidPerdidos = rfidFiltrados.filter(r => r.status === 'PERDIDO' || r.status === 'PAGO').length || 12;
-  const rfidPagos = rfidFiltrados.filter(r => r.status === 'PAGO').length || 8;
+  const rfidPerdidos = rfidFiltrados.filter(r => r.status === 'PERDIDO' || r.status === 'PAGO').length;
+  const rfidPagos = rfidFiltrados.filter(r => r.status === 'PAGO').length;
   const pctPagos = rfidPerdidos > 0 ? Math.round((rfidPagos / rfidPerdidos) * 100) : 0;
 
   const provP1Total = provisoriosFiltrados.filter(p => p.portaria === 'P1').length;
@@ -513,9 +451,9 @@ export default function DashboardExecutivoView({
 
   const totalLibP1 = provP1Total + visP1Total;
   const totalLibP2 = provP2Total + visP2Total;
-  const totalGeralLib = totalLibP1 + totalLibP2 || 1;
-  const pctP1 = Math.round((totalLibP1 / totalGeralLib) * 100);
-  const pctP2 = Math.round((totalLibP2 / totalGeralLib) * 100);
+  const totalGeralLib = totalLibP1 + totalLibP2;
+  const pctP1 = totalGeralLib > 0 ? Math.round((totalLibP1 / totalGeralLib) * 100) : 0;
+  const pctP2 = totalGeralLib > 0 ? Math.round((totalLibP2 / totalGeralLib) * 100) : 0;
 
   // Exportar Relatório Executivo em PDF
   const handleExportarPdf = async () => {
@@ -629,7 +567,7 @@ export default function DashboardExecutivoView({
               CCO SECURITY SUITE • RELATÓRIO EXECUTIVO CONSOLIDADO
             </h1>
             <p className="text-xs text-slate-400">
-              Central de Controle Operacional • Site Ecoparque • Impressão em Modo Paisagem
+              Central de Controle Operacional • Planta Operacional • Impressão em Modo Paisagem
             </p>
           </div>
           <div className="text-right text-xs text-slate-300">
@@ -651,7 +589,7 @@ export default function DashboardExecutivoView({
               </span>
               <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Site Ecoparque • Tempo Real
+                Planta Operacional • Tempo Real
               </span>
               <div className="flex items-center gap-1.5 border-l border-slate-700 pl-2.5">
                 <span className="text-[11px] text-slate-400 font-medium">Operador CCO:</span>
@@ -1253,7 +1191,7 @@ export default function DashboardExecutivoView({
               </div>
             </div>
             <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
-              <span>Cobrança e regularização controladas via formulário padrão externo (Natura)</span>
+              <span>Cobrança e regularização controladas via formulário padrão de conformidade corporativa</span>
             </div>
           </div>
 

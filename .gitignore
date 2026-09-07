@@ -1,6 +1,7 @@
-# Logs
+# Logs e Temporários
 logs
 *.log
+scripts/temp*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -10,7 +11,9 @@ lerna-debug.log*
 # Dependências e Builds
 node_modules
 dist
+dist-react
 dist-ssr
+dist-electron
 *.local
 
 # Editor directories and files
@@ -50,6 +53,7 @@ observacoes.json
 exports/*
 !exports/.gitkeep
 *.pdf
+!docs/*.pdf
 
 # 5. Diretórios de Rede e Dados Locais
 MAPA DE CALOR/

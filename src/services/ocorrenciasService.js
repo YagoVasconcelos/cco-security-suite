@@ -91,7 +91,7 @@ export async function carregarOcorrencias() {
     const res = await fetch('/api/ocorrencias');
     if (res.ok) {
       const dados = await res.json();
-      if (Array.isArray(dados) && dados.length > 0) {
+      if (Array.isArray(dados)) {
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
         } catch (e) {
@@ -107,7 +107,7 @@ export async function carregarOcorrencias() {
   // Fallback para o localStorage
   try {
     const salvo = localStorage.getItem(STORAGE_KEY);
-    if (salvo) {
+    if (salvo !== null) {
       const parsed = JSON.parse(salvo);
       if (Array.isArray(parsed)) return parsed;
     }
@@ -202,11 +202,11 @@ export async function gerarRelatorioPdf({ formData, envolvidos = [], fotos = [],
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(71, 85, 105);
-  doc.text('GERENTE DE SITE "ECOPARQUE":', margin + 3, currentY + 5);
+  doc.text('GERENTE DE SITE:', margin + 3, currentY + 5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(8.5);
-  doc.text(responsaveis.gerenteSite || 'Alcimara Silva', margin + 3, currentY + 11);
+  doc.text(responsaveis.gerenteSite || 'Gerência de Operações', margin + 3, currentY + 11);
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
   doc.text('Aprovação Executiva', margin + 3, currentY + 17);
@@ -219,7 +219,7 @@ export async function gerarRelatorioPdf({ formData, envolvidos = [], fotos = [],
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(8);
-  const coordLinhas = doc.splitTextToSize(responsaveis.coordenacao || 'Ordiley Batista – Coordenador - SERVIS', colWidth - 6);
+  const coordLinhas = doc.splitTextToSize(responsaveis.coordenacao || 'Coordenação de Segurança Corporativa', colWidth - 6);
   doc.text(coordLinhas, margin + colWidth + 3, currentY + 11);
 
   // Coluna 3: Fiscal de Contrato
@@ -230,7 +230,7 @@ export async function gerarRelatorioPdf({ formData, envolvidos = [], fotos = [],
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(8.5);
-  doc.text(responsaveis.fiscalContrato || 'Roberta Santos', margin + (colWidth * 2) + 3, currentY + 11);
+  doc.text(responsaveis.fiscalContrato || 'Fiscalização de Contrato', margin + (colWidth * 2) + 3, currentY + 11);
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
   doc.text('Fiscalização e Auditoria', margin + (colWidth * 2) + 3, currentY + 17);
@@ -267,7 +267,7 @@ export async function gerarRelatorioPdf({ formData, envolvidos = [], fotos = [],
 
   const localFormatado = formData.predio && formData.area
     ? `${formData.predio} - ${formData.area}`
-    : (formData.local || 'Site Ecoparque');
+    : (formData.local || 'Planta Operacional');
   const localLinhas = doc.splitTextToSize(localFormatado, 66);
   doc.text(localLinhas, margin + 60, currentY + 10);
 
@@ -573,9 +573,9 @@ export async function salvarRelatorioOcorrenciaCompleto({ formData, envolvidos, 
       base64: f.base64
     })),
     responsaveis: {
-      gerenteSite: responsaveis.gerenteSite || 'Alcimara Silva',
-      coordenacao: responsaveis.coordenacao || 'Ordiley Batista – Coordenador de segurança local - SERVIS',
-      fiscalContrato: responsaveis.fiscalContrato || 'Roberta Santos',
+      gerenteSite: responsaveis.gerenteSite || 'Gerência de Operações',
+      coordenacao: responsaveis.coordenacao || 'Coordenação de Segurança Corporativa',
+      fiscalContrato: responsaveis.fiscalContrato || 'Fiscalização de Contrato',
       caminhoRede: responsaveis.caminhoRede || 'MAPA DE CALOR/2026/09.SETEMBRO'
     },
     nomeArquivoPdf: nomeArquivo,
