@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    margin: 0;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* ==========================================================================
+   REGRAS ESPECÍFICAS DE IMPRESSÃO NATIVA (FORÇAR PAISAGEM / LANDSCAPE)
+   ========================================================================== */
+@page {
+  size: landscape;
+  margin: 8mm;
+}
+
+@media print {
+  /* Oculta Sidebar, Header do sistema, botões de ação e modais */
+  aside,
+  header,
+  .no-print,
+  button,
+  .modal-overlay {
+    display: none !important;
+  }
+
+  /* Garante cores e fundo nítidos na impressão */
+  html, body, #root, main {
+    background-color: #020617 !important;
+    color: #f8fafc !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Força a exibição fiel do grid em 4 colunas lado a lado (sem empilhar) */
+  .print-dashboard-kpis {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  /* Força a exibição das 4 tabelas de detalhamento em grid 2x2 no papel paisagem */
+  .print-dashboard-detalhamento {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  /* Força a exibição dos painéis analíticos lado a lado (2 colunas + 1 coluna) */
+  .print-dashboard-panels {
+    display: grid !important;
+    grid-template-columns: 2fr 1fr !important;
+    gap: 16px !important;
+    width: 100% !important;
+  }
+
+  /* Força a exibição dos 4 atalhos lado a lado */
+  .print-dashboard-shortcuts {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  /* Evita quebras indesejadas de página dentro de containers, cards e linhas de tabelas */
+  .print-avoid-break,
+  .print-dashboard-kpis > div,
+  .print-dashboard-detalhamento > div,
+  .print-dashboard-panels > div,
+  .print-dashboard-shortcuts > div,
+  table,
+  tbody,
+  tr,
+  td,
+  th {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Bordas e fundos para manter legibilidade em papel */
+  .bg-slate-900, .bg-slate-950 {
+    background-color: #0f172a !important;
+    border-color: #334155 !important;
+  }
+
+  /* Remove sombras que borram em impressão */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+}

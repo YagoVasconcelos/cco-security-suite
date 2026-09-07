@@ -1,0 +1,55 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependências e Builds
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ==========================================================
+# CCO SECURITY SUITE v1.0 - PROTEÇÃO & LIMPEZA DE DADOS
+# ==========================================================
+
+# 1. Arquivos de Banco de Dados com Registros Reais em /data/
+data/*.json
+!data/database_template.json
+!data/.gitkeep
+
+# 2. Arquivos de Banco de Dados Operacionais e Cache na Raiz
+ocorrencias.json
+operadores.json
+responsaveis.json
+seguranca.json
+turnos.json
+observacoes.json
+
+# 3. Planilhas Excel com Dados e Registros Reais da Operação
+*.xlsx
+*.xls
+*.csv
+
+# 4. Pastas de Exportação e Relatórios Gerados
+exports/*
+!exports/.gitkeep
+*.pdf
+
+# 5. Diretórios de Rede e Dados Locais
+MAPA DE CALOR/

@@ -1,0 +1,70 @@
+{
+  "_comentario": "CCO Security Suite v1.0 - Modelo Padrão de Banco de Dados para Inicialização e GitHub",
+  "versao": "1.0",
+  "dataCriacao": "2026-01-01T00:00:00.000Z",
+  "seguranca": {
+    "senhaMestra": "admin123",
+    "dataAtualizacao": "2026-01-01T00:00:00.000Z"
+  },
+  "responsaveis": {
+    "gerenteSite": "Gerência de Operações",
+    "coordenacao": "Coordenação de Segurança Local - SERVIS",
+    "fiscalContrato": "Fiscalização de Contrato",
+    "caminhoRede": "MAPA DE CALOR/2026/09.SETEMBRO",
+    "atualizadoEm": "2026-01-01T00:00:00.000Z"
+  },
+  "operadores": [
+    {
+      "id": "op-1",
+      "nome": "Op. Maria Conceição",
+      "matricula": "CCO-1001",
+      "cargo": "Operador CCO",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "op-2",
+      "nome": "Op. Ordiley Batista",
+      "matricula": "CCO-1002",
+      "cargo": "Operador CCO Líder",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    }
+  ],
+  "turnos": [
+    {
+      "id": "turno-1",
+      "nome": "12x36 Diurno",
+      "descricao": "Escala operacional diurna de 12 horas (06:00 às 18:00 / 07:00 às 19:00)",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "turno-2",
+      "nome": "12x36 Noturno",
+      "descricao": "Escala operacional noturna de 12 horas (18:00 às 06:00 / 19:00 às 07:00)",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "turno-3",
+      "nome": "Administrativo",
+      "descricao": "Horário comercial de segunda a sexta-feira (08:00 às 17:00)",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    }
+  ],
+  "observacoes": [
+    { "id": "obs-1", "nome": "ESQUECEU", "status": "Ativo", "dataCadastro": "2026-01-01" },
+    { "id": "obs-2", "nome": "PERDEU", "status": "Ativo", "dataCadastro": "2026-01-01" },
+    { "id": "obs-3", "nome": "COM DEFEITO", "status": "Ativo", "dataCadastro": "2026-01-01" },
+    { "id": "obs-4", "nome": "RETIDO", "status": "Ativo", "dataCadastro": "2026-01-01" },
+    { "id": "obs-5", "nome": "OUTROS", "status": "Ativo", "dataCadastro": "2026-01-01" }
+  ],
+  "ocorrencias": [],
+  "provisorios": [],
+  "visitantes": [],
+  "rfid": []
+}
