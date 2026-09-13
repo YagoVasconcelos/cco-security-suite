@@ -22,13 +22,12 @@ import {
   carregarObservacoes, 
   obterNomesObservacoesAtivas 
 } from '../../services/observacoesService';
-
-const VIGILANTES_PADRAO = [
-  'Vigilante Portaria 1',
-  'Vigilante Portaria 2',
-  'Vigilante Ronda',
-  'Operador CCO'
-];
+import { 
+  carregarVigilantes, 
+  obterNomesVigilantesAtivos 
+} from '../../services/vigilantesService';
+import AutocompleteInput from '../../components/common/AutocompleteInput';
+import { salvarPessoaUnificada } from '../../services/baseUnificadaService';
 
 const MOTIVOS_INICIAIS = [
   'REUNIÃO',
@@ -40,9 +39,6 @@ const MOTIVOS_INICIAIS = [
   'ENTREVISTA / PROCESSO SELETIVO',
   'PARTICULAR / FAMILIAR'
 ];
-
-// Sugestões de anfitriões cadastradas dinamicamente
-const SUGESTOES_ANFITRIOES = [];
 
 export default function NovoVisitanteModal({
   isOpen,
@@ -72,28 +68,63 @@ export default function NovoVisitanteModal({
   const [motivo, setMotivo] = useState('REUNIÃO');
   const [motivoOutros, setMotivoOutros] = useState('');
 
-  // Vigilante & Timestamps
-  const [vigilante, setVigilante] = useState(VIGILANTES_PADRAO[0]);
+  // Vigilantes de Posto (Campo) Dinâmicos
+  const [listaVigilantes, setListaVigilantes] = useState(() => {
+    const ativas = obterNomesVigilantesAtivos();
+    return ativas.length > 0 ? ativas : ['Vigilante Portaria 1', 'Vigilante Portaria 2', 'Vigilante Ronda'];
+  });
+  const [vigilante, setVigilante] = useState(() => {
+    const ativas = obterNomesVigilantesAtivos();
+    return ativas[0] || 'Vigilante Portaria 1';
+  });
   const [dataEntrada, setDataEntrada] = useState(new Date().toISOString().split('T')[0]);
   const [horaEntrada, setHoraEntrada] = useState(new Date().toTimeString().split(' ')[0].substring(0, 5));
 
-  // Sugestões de anfitriões
-  const [sugestoesAnfitriao, setSugestoesAnfitriao] = useState([]);
-
-  // Atualiza data, hora e observações dinâmicas
+  // Atualiza data, hora, observações e vigilantes dinâmicos
   useEffect(() => {
     const atualizar = async () => {
       try {
         const dados = await carregarObservacoes();
-        const ativas = dados.filter(o => o.status !== 'Inativo').map(o => o.nome);
+        const lista = Array.isArray(dados) ? dados : [];
+        const ativas = lista.filter(o => o && o.status !== 'Inativo').map(o => o.nome);
         setListaMotivos(Array.from(new Set([...MOTIVOS_INICIAIS, ...ativas])));
       } catch (e) {}
     };
+
+    const atualizarVigs = async () => {
+      try {
+        const vigDados = await carregarVigilantes();
+        const listaVigs = Array.isArray(vigDados) ? vigDados : [];
+        const ativas = listaVigs.filter(v => v && v.status !== 'Inativo').map(v => v.nome);
+        if (ativas.length > 0) {
+          setListaVigilantes(ativas);
+          setVigilante(prev => (ativas.includes(prev) ? prev : ativas[0]));
+        }
+      } catch (e) {}
+    };
+
     atualizar();
+    atualizarVigs();
 
     const handleObs = () => atualizar();
+    const handleVigs = (e) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        const ativas = e.detail.filter(v => v && v.status !== 'Inativo').map(v => v.nome);
+        if (ativas.length > 0) {
+          setListaVigilantes(ativas);
+          setVigilante(prev => (ativas.includes(prev) ? prev : ativas[0]));
+        }
+      } else {
+        atualizarVigs();
+      }
+    };
+
     window.addEventListener('cco_observacoes_changed', handleObs);
-    return () => window.removeEventListener('cco_observacoes_changed', handleObs);
+    window.addEventListener('cco_vigilantes_changed', handleVigs);
+    return () => {
+      window.removeEventListener('cco_observacoes_changed', handleObs);
+      window.removeEventListener('cco_vigilantes_changed', handleVigs);
+    };
   }, []);
 
   useEffect(() => {
@@ -121,23 +152,7 @@ export default function NovoVisitanteModal({
     return { numero: num, fullId, ocupado };
   });
 
-  const handleAnfitriaoChange = (val) => {
-    setAnfitriaoNome(val);
-    if (val.trim().length >= 2) {
-      const matches = SUGESTOES_ANFITRIOES.filter(a => 
-        a.nome.toLowerCase().includes(val.toLowerCase())
-      );
-      setSugestoesAnfitriao(matches);
-    } else {
-      setSugestoesAnfitriao([]);
-    }
-  };
 
-  const selecionarAnfitriao = (item) => {
-    setAnfitriaoNome(item.nome);
-    setAnfitriaoSetor(item.setor);
-    setSugestoesAnfitriao([]);
-  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -182,6 +197,21 @@ export default function NovoVisitanteModal({
       vigilanteEntrada: vigilante,
       vigilanteSaida: null
     };
+
+    salvarPessoaUnificada({
+      nome: nomeVisitante.trim(),
+      empresa: empresaVisitante.trim(),
+      documento: documento.trim(),
+      placaVeiculo: placaVeiculo.trim()
+    });
+
+    if (anfitriaoNome && anfitriaoNome.trim()) {
+      salvarPessoaUnificada({
+        nome: anfitriaoNome.trim(),
+        cargo: anfitriaoSetor.trim() || 'COLABORADOR',
+        empresa: 'INTERNO'
+      });
+    }
 
     onSalvar(novoVisitante);
     onClose();
@@ -293,16 +323,23 @@ export default function NovoVisitanteModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-medium text-slate-400 mb-1">
-                  Nome Completo do Visitante <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Nome completo do visitante..."
-                  value={nomeVisitante}
-                  onChange={(e) => setNomeVisitante(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
+                <AutocompleteInput
+                  tipo="pessoa"
+                  label="Nome Completo do Visitante"
                   required
+                  placeholder="Nome do visitante (busca global)..."
+                  value={nomeVisitante}
+                  onChange={(val) => setNomeVisitante(val)}
+                  onSelect={(pessoa) => {
+                    setNomeVisitante(pessoa.nome);
+                    if (pessoa.documento) setDocumento(pessoa.documento);
+                    if (pessoa.empresa && pessoa.empresa !== 'VISITA PARTICULAR' && pessoa.empresa !== 'ESTOQUE CCO') {
+                      setEmpresaVisitante(pessoa.empresa);
+                    }
+                    if (pessoa.placaVeiculo && pessoa.placaVeiculo !== 'N/A') {
+                      setPlacaVeiculo(pessoa.placaVeiculo);
+                    }
+                  }}
                 />
               </div>
 
@@ -321,15 +358,13 @@ export default function NovoVisitanteModal({
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-400 mb-1">
-                  Empresa / Origem do Visitante
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: Prestador XYZ, Visita Particular"
+                <AutocompleteInput
+                  tipo="empresa"
+                  label="Empresa / Origem do Visitante"
+                  placeholder="Ex: Prestador XYZ, Visita Particular..."
                   value={empresaVisitante}
-                  onChange={(e) => setEmpresaVisitante(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                  onChange={(val) => setEmpresaVisitante(val)}
+                  onSelect={(emp) => setEmpresaVisitante(typeof emp === 'string' ? emp : emp.empresa || emp)}
                 />
               </div>
 
@@ -368,38 +403,25 @@ export default function NovoVisitanteModal({
               Informe o nome e setor do colaborador interno da empresa que autorizou e solicitou a credencial para o visitante.
             </p>
 
-            <div className="relative">
-              <label className="block text-[11px] font-medium text-slate-300 mb-1">
-                Nome do Anfitrião (Colaborador que autorizou) <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="Digite o nome do colaborador que autorizou a visita..."
-                value={anfitriaoNome}
-                onChange={(e) => handleAnfitriaoChange(e.target.value)}
-                className="w-full bg-slate-950 border border-emerald-500/80 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-400 font-medium"
+            <div>
+              <AutocompleteInput
+                tipo="pessoa"
+                label="Nome do Anfitrião (Colaborador que autorizou)"
                 required
+                placeholder="Digite o nome do anfitrião (busca global na suíte)..."
+                value={anfitriaoNome}
+                onChange={(val) => setAnfitriaoNome(val)}
+                onSelect={(colab) => {
+                  setAnfitriaoNome(colab.nome);
+                  if (colab.cargo) {
+                    setAnfitriaoSetor(colab.cargo);
+                  } else if (colab.empresa && colab.empresa !== 'INTERNO' && colab.empresa !== 'VISITANTES') {
+                    setAnfitriaoSetor(colab.empresa);
+                  }
+                }}
+                icon={Users}
+                inputClassName="border-emerald-500/80 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 font-medium"
               />
-
-              {/* Sugestões de Anfitrião */}
-              {sugestoesAnfitriao.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 overflow-hidden divide-y divide-slate-800">
-                  <div className="px-3 py-1.5 bg-slate-950 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Responsáveis do Site Encontrados (Clique para preencher)
-                  </div>
-                  {sugestoesAnfitriao.map((item, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => selecionarAnfitriao(item)}
-                      className="w-full text-left p-2.5 hover:bg-slate-800 text-xs flex items-center justify-between"
-                    >
-                      <span className="font-bold text-slate-200">{item.nome}</span>
-                      <span className="text-[11px] text-slate-400">{item.setor}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -481,7 +503,7 @@ export default function NovoVisitanteModal({
                 onChange={(e) => setVigilante(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
               >
-                {VIGILANTES_PADRAO.map((v, i) => (
+                {listaVigilantes.map((v, i) => (
                   <option key={i} value={v}>{v}</option>
                 ))}
               </select>

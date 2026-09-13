@@ -154,13 +154,13 @@ export async function gerarRelatorioPdf({ formData, envolvidos = [], fotos = [],
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text('CCO SECURITY SUITE • CENTRAL DE CONTROLE OPERACIONAL', margin, 10);
+    doc.text('CCO SECURITY SUITE CENTRAL DE CONTROLE OPERACIONAL', margin, 10);
 
     const nomeOperadorAtivo = responsaveis?.operador || localStorage.getItem('cco_operador_ativo') || 'Operador CCO';
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(191, 219, 254); // blue-200
-    doc.text(`SEGURANÇA PATRIMONIAL & CONTROLE DE ACESSO • OPERADOR: ${nomeOperadorAtivo.toUpperCase()}`, margin, 16);
+    doc.text(`SEGURANÇA PATRIMONIAL & CONTROLE DE ACESSO — OPERADOR: ${nomeOperadorAtivo.toUpperCase()}`, margin, 16);
 
     // Box do protocolo no canto direito
     doc.setFillColor(30, 41, 59); // slate-800
@@ -276,22 +276,36 @@ export async function gerarRelatorioPdf({ formData, envolvidos = [], fotos = [],
   doc.text(topicoLinhas, margin + 130, currentY + 10);
   currentY += 17;
 
-  // Título e Descrição Detalhada
-  doc.setFillColor(241, 245, 249);
-  doc.setDrawColor(203, 213, 225);
-  doc.rect(margin, currentY, contentWidth, 8, 'FD');
+  // Título e Descrição Detalhada (Espaçamento robusto contra sobreposição)
+  const tituloTexto = `TÍTULO: ${formData.titulo || 'Ocorrência Operacional sem título'}`;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text(`TÍTULO: ${formData.titulo || 'Ocorrência Operacional sem título'}`, margin + 3, currentY + 5.5);
-  currentY += 10;
+  const tituloLinhas = doc.splitTextToSize(tituloTexto, contentWidth - 6);
+  const tituloBoxHeight = Math.max(8.5, (tituloLinhas.length * 4.5) + 3.5);
 
-  // Texto da Descrição Detalhada
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(203, 213, 225);
+  doc.rect(margin, currentY, contentWidth, tituloBoxHeight, 'FD');
+  doc.setTextColor(15, 23, 42);
+  doc.text(tituloLinhas, margin + 3, currentY + 5.5);
+
+  // Espaçamento vertical explícito de segurança: caixa do título + 6mm livres
+  currentY += tituloBoxHeight + 6;
+
+  // Texto da Descrição Detalhada / Relato Cronológico
+  if (currentY > pageHeight - 35) {
+    doc.addPage();
+    desenharCabecalho(doc.internal.getNumberOfPages());
+    currentY = 32;
+  }
+
+  doc.setFillColor(30, 41, 59);
+  doc.rect(margin, currentY, contentWidth, 6.5, 'F');
+  doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(71, 85, 105);
-  doc.text('RELATO CRONOLÓGICO DOS FATOS:', margin, currentY);
-  currentY += 4.5;
+  doc.setFontSize(9);
+  doc.text('2. RELATO CRONOLÓGICO DOS FATOS', margin + 3, currentY + 4.5);
+  currentY += 9;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -301,16 +315,37 @@ export async function gerarRelatorioPdf({ formData, envolvidos = [], fotos = [],
     formData.descricao || 'Sem descrição detalhada registrada.',
     contentWidth
   );
-  doc.text(linhasDescricao, margin, currentY);
-  currentY += (linhasDescricao.length * 4.2) + 6;
 
-  // 2. Tabela de Envolvidos / Identificação de Pessoas
+  const lineHeightMm = 4.2;
+  for (let i = 0; i < linhasDescricao.length; i++) {
+    // Se a próxima linha ultrapassar a margem de segurança da página
+    if (currentY + lineHeightMm > pageHeight - 25) {
+      doc.addPage();
+      desenharCabecalho(doc.internal.getNumberOfPages());
+      currentY = 32;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(30, 41, 59);
+    }
+    doc.text(linhasDescricao[i], margin, currentY);
+    currentY += lineHeightMm;
+  }
+  currentY += 6;
+
+  // 3. Tabela de Envolvidos / Identificação de Pessoas
+  // Se não houver espaço suficiente para o cabeçalho e pelo menos 2 linhas da tabela
+  if (currentY > pageHeight - 45) {
+    doc.addPage();
+    desenharCabecalho(doc.internal.getNumberOfPages());
+    currentY = 32;
+  }
+
   doc.setFillColor(30, 41, 59);
   doc.rect(margin, currentY, contentWidth, 6.5, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.text('2. TABELA 1 - ENVOLVIDOS / IDENTIFICAÇÃO DE PESSOAS', margin + 3, currentY + 4.5);
+  doc.text('3. ENVOLVIDOS/IDENTIFICAÇÃO DE PESSOAS', margin + 3, currentY + 4.5);
   currentY += 7.5;
 
   // Monta linhas da tabela de envolvidos
@@ -355,7 +390,7 @@ export async function gerarRelatorioPdf({ formData, envolvidos = [], fotos = [],
 
   currentY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : currentY + 30;
 
-  // 3. Registro Fotográfico / Imagens da Ocorrência
+  // 4. Registro Fotográfico / Imagens da Ocorrência
   // Verifica se há espaço para a seção de fotos na página atual
   if (currentY > pageHeight - 50) {
     doc.addPage();
@@ -369,7 +404,7 @@ export async function gerarRelatorioPdf({ formData, envolvidos = [], fotos = [],
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text(
-    `3. REGISTRO FOTOGRÁFICO / ANEXO DE IMAGENS (${fotos.length} ${fotos.length === 1 ? 'REGISTRO' : 'REGISTROS'})`,
+    `4. REGISTRO FOTOGRÁFICO / ANEXO DE IMAGENS (${fotos.length} ${fotos.length === 1 ? 'REGISTRO' : 'REGISTROS'})`,
     margin + 3,
     currentY + 4.5
   );
@@ -587,10 +622,11 @@ export async function salvarRelatorioOcorrenciaCompleto({ formData, envolvidos, 
     numeroRO: formData.numeroRO,
     nomeArquivo,
     caminhosSalvos: [],
-    erros: []
+    erros: [],
+    avisos: []
   };
 
-  // 4. Salva os dados em JSON e Excel na pasta raiz via endpoint /api/salvar-ocorrencia
+  // 4. Salva os dados em JSON e Excel na pasta segura via endpoint /api/salvar-ocorrencia
   try {
     const resOcorrencia = await fetch('/api/salvar-ocorrencia', {
       method: 'POST',
@@ -604,13 +640,14 @@ export async function salvarRelatorioOcorrenciaCompleto({ formData, envolvidos, 
         resultados.caminhosSalvos.push(...dataRes.savedPaths);
       }
     } else {
-      resultados.erros.push('Falha no salvamento do JSON/Excel local via API.');
+      const errRes = await resOcorrencia.json().catch(() => ({}));
+      resultados.erros.push(errRes.error || 'Falha no salvamento do banco de dados local via API.');
     }
   } catch (apiErr) {
     console.warn('API local offline para salvar ocorrência, gravando em cache local:', apiErr);
   }
 
-  // 5. Salva o PDF fisicamente na pasta CCO/exports e na pasta de rede via endpoint /api/salvar-pdf
+  // 5. Salva o PDF fisicamente na pasta segura do Windows (Documentos) e na rede via /api/salvar-pdf
   try {
     const resPdf = await fetch('/api/salvar-pdf', {
       method: 'POST',
@@ -627,11 +664,19 @@ export async function salvarRelatorioOcorrenciaCompleto({ formData, envolvidos, 
       if (dataPdf.savedPaths) {
         resultados.caminhosSalvos.push(...dataPdf.savedPaths);
       }
+      if (dataPdf.warnings && Array.isArray(dataPdf.warnings)) {
+        resultados.avisos.push(...dataPdf.warnings);
+      }
     } else {
-      resultados.erros.push('Falha no salvamento automático do PDF em CCO/exports.');
+      const errData = await resPdf.json().catch(() => ({}));
+      resultados.erros.push(errData.error || 'Falha de permissão ao salvar PDF em disco.');
+      if (errData.warnings && Array.isArray(errData.warnings)) {
+        resultados.avisos.push(...errData.warnings);
+      }
     }
   } catch (pdfErr) {
     console.warn('API local offline para salvar PDF:', pdfErr);
+    resultados.avisos.push('Servidor local offline: o PDF foi disponibilizado diretamente para download pelo navegador.');
   }
 
   // 6. Salva no localStorage como garantia de redundância offline
@@ -659,11 +704,13 @@ export async function salvarRelatorioOcorrenciaCompleto({ formData, envolvidos, 
     }
   }
 
-  // 7. Dispara o download nativo imediato no navegador do operador
-  try {
-    doc.save(nomeArquivo);
-  } catch (downloadErr) {
-    console.error('Erro ao disparar download no navegador:', downloadErr);
+  // 7. Dispara download manual via navegador EXCLUSIVAMENTE se a gravação direta em disco não ocorreu (fallback offline)
+  if (!resultados.caminhosSalvos || resultados.caminhosSalvos.length === 0) {
+    try {
+      doc.save(nomeArquivo);
+    } catch (downloadErr) {
+      console.error('Erro ao disparar download no navegador:', downloadErr);
+    }
   }
 
   return resultados;

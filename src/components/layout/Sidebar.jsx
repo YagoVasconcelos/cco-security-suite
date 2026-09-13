@@ -34,7 +34,8 @@ export default function Sidebar({
     const atualizarOperadores = async () => {
       try {
         const dados = await carregarOperadores();
-        const ativos = dados.filter(op => op.status !== 'Inativo').map(op => op.nome);
+        const lista = Array.isArray(dados) ? dados : [];
+        const ativos = lista.filter(op => op && op.status !== 'Inativo').map(op => op.nome);
         if (ativos.length > 0) {
           setListaOperadores(ativos);
         }
@@ -121,9 +122,9 @@ export default function Sidebar({
   const moduloSobre = {
     id: 'sobre',
     label: 'Sobre o Sistema',
-    description: 'Autoria & Licença v1.0',
+    description: 'Autoria & Licença Rev 1.0',
     icon: HelpCircle,
-    badge: 'v1.0',
+    badge: 'Rev 1.0',
   };
 
   return (

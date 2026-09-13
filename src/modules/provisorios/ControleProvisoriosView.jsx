@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   CreditCard,
   Search,
@@ -14,20 +14,29 @@ import {
   Shield,
   ArrowDownLeft,
   ArrowUpRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   Sparkles,
   Check,
   X,
   History,
   Timer,
-  FileCheck
+  FileCheck,
+  DollarSign,
+  ShieldAlert
 } from 'lucide-react';
 import CardSlotsVisualizer from './CardSlotsVisualizer';
 import NovaSaidaModal from './NovaSaidaModal';
 import {
   carregarRegistros,
   salvarRegistros,
+  obterRegistrosLocais,
   registrarSaidaCredencial,
   registrarBaixaDevolucao,
+  registrarPerdaProvisorio,
+  marcarProvisorioComoPago,
+  calcularMetricasProvisorios,
   verificarRegraTresAcessos,
   formatarDataBr,
   LIMITE_ACESSOS_MES
@@ -39,18 +48,65 @@ import {
   carregarObservacoes,
   obterNomesObservacoesAtivas
 } from '../../services/observacoesService';
+import {
+  carregarVigilantes,
+  obterNomesVigilantesAtivos
+} from '../../services/vigilantesService';
 
 export default function ControleProvisoriosView() {
-  const [registros, setRegistros] = useState([]);
+  const [registros, setRegistros] = useState(() => {
+    const locais = obterRegistrosLocais();
+    return Array.isArray(locais) ? locais : [];
+  });
   const [busca, setBusca] = useState('');
   const [filtroPortaria, setFiltroPortaria] = useState('TODAS');
   const [filtroSituacao, setFiltroSituacao] = useState('TODAS');
   const [filtroObservacao, setFiltroObservacao] = useState('TODAS');
 
+  // Ordenação dinâmica das colunas
+  // Padrão inicial: 'retirada' decrescente (mais recentes primeiro)
+  const [sortField, setSortField] = useState('retirada'); // 'cartao' | 'colaborador' | 'retirada' | 'devolucao' | 'motivo' | 'vigilante'
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' | 'asc'
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(prev => (prev === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortField(field);
+      setSortOrder(field === 'retirada' || field === 'devolucao' ? 'desc' : 'asc');
+    }
+  };
+
+  const renderSortIndicator = (field) => {
+    if (sortField !== field) {
+      return (
+        <span className="inline-flex items-center text-slate-600 opacity-40 group-hover:opacity-100 transition-opacity ml-1">
+          <ArrowUpDown className="w-3 h-3" />
+        </span>
+      );
+    }
+    return sortOrder === 'desc' ? (
+      <span className="inline-flex items-center text-amber-400 font-bold ml-1 animate-in fade-in zoom-in duration-150">
+        <ArrowDown className="w-3 h-3" />
+      </span>
+    ) : (
+      <span className="inline-flex items-center text-amber-400 font-bold ml-1 animate-in fade-in zoom-in duration-150">
+        <ArrowUp className="w-3 h-3" />
+      </span>
+    );
+  };
+
   // Observações Dinâmicas
-  const [listaObservacoes, setListaObservacoes] = useState(() => obterNomesObservacoesAtivas());
+  const [listaObservacoes, setListaObservacoes] = useState(() => {
+    const obs = obterNomesObservacoesAtivas();
+    return Array.isArray(obs) ? obs : [];
+  });
 
-
+  // Vigilantes de Posto (Campo) Dinâmicos
+  const [listaVigilantes, setListaVigilantes] = useState(() => {
+    const ativas = obterNomesVigilantesAtivos();
+    return Array.isArray(ativas) && ativas.length > 0 ? ativas : ['Vigilante Portaria 1', 'Vigilante Portaria 2', 'Vigilante Ronda'];
+  });
 
   // Modal de Nova Saída
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -59,7 +115,10 @@ export default function ControleProvisoriosView() {
   const [registroParaBaixa, setRegistroParaBaixa] = useState(null);
   const [dataBaixa, setDataBaixa] = useState('');
   const [horaBaixa, setHoraBaixa] = useState('');
-  const [vigilanteRecebedor, setVigilanteRecebedor] = useState('Vigilante Portaria 1');
+  const [vigilanteRecebedor, setVigilanteRecebedor] = useState(() => {
+    const ativas = obterNomesVigilantesAtivos();
+    return (Array.isArray(ativas) && ativas[0]) || 'Vigilante Portaria 1';
+  });
 
   // Modal de Detalhes de Reincidência (Histórico dos acessos do colaborador no mês)
   const [detalhesColaborador, setDetalhesColaborador] = useState(null);
@@ -70,27 +129,57 @@ export default function ControleProvisoriosView() {
   // Feedback de ações
   const [toast, setToast] = useState(null);
 
-  // Carrega os dados na inicialização
+  // Carrega os dados na inicialização de forma segura
   useEffect(() => {
-    const dados = carregarRegistros();
-    setRegistros(dados);
+    let montado = true;
+
+    carregarRegistros().then(dados => {
+      if (montado && Array.isArray(dados)) {
+        setRegistros(dados);
+      }
+    }).catch(err => {
+      console.warn('Erro ao carregar registros provisórios:', err);
+    });
 
     const atualizarObs = async () => {
       try {
         const obsDados = await carregarObservacoes();
-        const ativas = obsDados.filter(o => o.status !== 'Inativo').map(o => o.nome);
-        if (ativas.length > 0) {
+        const listaObs = Array.isArray(obsDados) ? obsDados : [];
+        const ativas = listaObs.filter(o => o && o.status !== 'Inativo').map(o => o.nome);
+        if (ativas.length > 0 && montado) {
           setListaObservacoes(ativas);
         }
       } catch (e) { }
     };
 
+    const atualizarVigs = async () => {
+      try {
+        const vigDados = await carregarVigilantes();
+        const listaVigs = Array.isArray(vigDados) ? vigDados : [];
+        const ativas = listaVigs.filter(v => v && v.status !== 'Inativo').map(v => v.nome);
+        if (ativas.length > 0 && montado) {
+          setListaVigilantes(ativas);
+        }
+      } catch (e) { }
+    };
+
     atualizarObs();
+    atualizarVigs();
+
+    const handleProvisoriosChanged = (e) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        if (montado) setRegistros(e.detail);
+      } else {
+        carregarRegistros().then(dados => {
+          if (montado && Array.isArray(dados)) setRegistros(dados);
+        });
+      }
+    };
 
     const handleObsChanged = (e) => {
       if (e.detail && Array.isArray(e.detail)) {
-        const ativas = e.detail.filter(o => o.status !== 'Inativo').map(o => o.nome);
-        if (ativas.length > 0) {
+        const ativas = e.detail.filter(o => o && o.status !== 'Inativo').map(o => o.nome);
+        if (ativas.length > 0 && montado) {
           setListaObservacoes(ativas);
         }
       } else {
@@ -98,8 +187,26 @@ export default function ControleProvisoriosView() {
       }
     };
 
+    const handleVigsChanged = (e) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        const ativas = e.detail.filter(v => v && v.status !== 'Inativo').map(v => v.nome);
+        if (ativas.length > 0 && montado) {
+          setListaVigilantes(ativas);
+        }
+      } else {
+        atualizarVigs();
+      }
+    };
+
+    window.addEventListener('cco_provisorios_changed', handleProvisoriosChanged);
     window.addEventListener('cco_observacoes_changed', handleObsChanged);
-    return () => window.removeEventListener('cco_observacoes_changed', handleObsChanged);
+    window.addEventListener('cco_vigilantes_changed', handleVigsChanged);
+    return () => {
+      montado = false;
+      window.removeEventListener('cco_provisorios_changed', handleProvisoriosChanged);
+      window.removeEventListener('cco_observacoes_changed', handleObsChanged);
+      window.removeEventListener('cco_vigilantes_changed', handleVigsChanged);
+    };
   }, []);
 
   const showToast = (mensagem, tipo = 'success') => {
@@ -107,63 +214,105 @@ export default function ControleProvisoriosView() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  // BLINDAGEM DE ARRAY: Garante que os registros sejam sempre um Array válido
+  const dadosSeguros = Array.isArray(registros) ? registros : [];
+
   // Mês atual em formato 'YYYY-MM'
   const mesAtual = new Date().toISOString().substring(0, 7);
+  const hojeStr = new Date().toISOString().split('T')[0];
 
-  // Cartões ocupados (status = NÃO DEVOLVIDO)
-  const cartoesOcupados = registros
-    .filter(r => r.situacao === 'NÃO DEVOLVIDO')
+  // Métricas automáticas consolidadas (incluindo Perdidos vs. Ressarcidos)
+  const metricas = useMemo(() => calcularMetricasProvisorios(dadosSeguros), [dadosSeguros]);
+
+  // Cartões ocupados (status = NÃO DEVOLVIDO e não quitado)
+  const cartoesOcupados = dadosSeguros
+    .filter(r => r && (r.situacao === 'NÃO DEVOLVIDO' || r.situacao === 'NAO_DEVOLVIDO' || r.status === 'NAO_DEVOLVIDO') && !(r.situacao === 'PAGO' || r.status === 'PAGO'))
     .map(r => ({
       cartao: r.cartao,
       colaborador: r.colaborador,
       hora: r.horaRetirada
     }));
 
-  // Identifica colaboradores que ultrapassaram o limite de 3 acessos no mês atual
-  const mapaReincidentesMes = new Map();
-  registros.forEach(r => {
-    if (r.dataRetirada.startsWith(mesAtual)) {
-      const nomeChave = r.colaborador.toUpperCase().trim();
-      const contagem = (mapaReincidentesMes.get(nomeChave) || 0) + 1;
-      mapaReincidentesMes.set(nomeChave, contagem);
-    }
-  });
+  // Filtragem e ordenação dinâmica da lista
+  const registrosFiltrados = useMemo(() => {
+    const filtrados = dadosSeguros.filter(r => {
+      if (!r) return false;
+      const termo = busca.toLowerCase().trim();
+      const matchBusca = !termo ||
+        (r.colaborador && r.colaborador.toLowerCase().includes(termo)) ||
+        (r.empresa && r.empresa.toLowerCase().includes(termo)) ||
+        (r.cartao && r.cartao.toLowerCase().includes(termo)) ||
+        (r.matricula && r.matricula.toLowerCase().includes(termo));
 
-  const totalReincidentesUnicos = Array.from(mapaReincidentesMes.entries())
-    .filter(([_, count]) => count >= LIMITE_ACESSOS_MES).length;
+      const matchPortaria = filtroPortaria === 'TODAS' || r.portaria === filtroPortaria;
 
-  // Métricas
-  const totalPendentes = registros.filter(r => r.situacao === 'NÃO DEVOLVIDO').length;
-  const hojeStr = new Date().toISOString().split('T')[0];
-  const totalDevolvidosHoje = registros.filter(r => r.situacao === 'DEVOLVIDO' && r.dataDevolucao === hojeStr).length;
-  const totalRegistros = registros.length;
+      let matchSituacao = true;
+      if (filtroSituacao === 'DEVOLVIDO') {
+        matchSituacao = (r.situacao === 'DEVOLVIDO' || r.status === 'DEVOLVIDO') && !(r.situacao === 'PAGO' || r.status === 'PAGO');
+      } else if (filtroSituacao === 'NÃO DEVOLVIDO') {
+        matchSituacao = (r.situacao === 'NÃO DEVOLVIDO' || r.situacao === 'NAO_DEVOLVIDO' || r.status === 'NAO_DEVOLVIDO') && !(r.situacao === 'PERDIDO' || r.status === 'PERDIDO' || r.observacao === 'PERDEU');
+      } else if (filtroSituacao === 'PERDIDO') {
+        matchSituacao = r.situacao === 'PERDIDO' || r.status === 'PERDIDO' || (r.situacao === 'NÃO DEVOLVIDO' && r.observacao === 'PERDEU');
+      } else if (filtroSituacao === 'PAGO') {
+        matchSituacao = r.situacao === 'PAGO' || r.status === 'PAGO';
+      }
 
-  // Filtragem da lista
-  const registrosFiltrados = registros.filter(r => {
-    const termo = busca.toLowerCase().trim();
-    const matchBusca = !termo ||
-      (r.colaborador && r.colaborador.toLowerCase().includes(termo)) ||
-      (r.empresa && r.empresa.toLowerCase().includes(termo)) ||
-      (r.cartao && r.cartao.toLowerCase().includes(termo)) ||
-      (r.matricula && r.matricula.toLowerCase().includes(termo));
+      const matchObs = filtroObservacao === 'TODAS' || (r.observacao && r.observacao.toUpperCase() === filtroObservacao.toUpperCase());
 
-    const matchPortaria = filtroPortaria === 'TODAS' || r.portaria === filtroPortaria;
+      return matchBusca && matchPortaria && matchSituacao && matchObs;
+    });
 
-    let matchSituacao = true;
-    if (filtroSituacao === 'DEVOLVIDO') {
-      matchSituacao = r.situacao === 'DEVOLVIDO' || r.status === 'DEVOLVIDO';
-    } else if (filtroSituacao === 'NÃO DEVOLVIDO') {
-      matchSituacao = r.situacao === 'NÃO DEVOLVIDO' || r.situacao === 'NAO_DEVOLVIDO' || r.status === 'NAO_DEVOLVIDO';
-    }
+    return [...filtrados].sort((a, b) => {
+      let comparison = 0;
 
-    const matchObs = filtroObservacao === 'TODAS' || (r.observacao && r.observacao.toUpperCase() === filtroObservacao.toUpperCase());
+      if (sortField === 'cartao') {
+        const numA = parseInt(String(a.cartao || '').replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(String(b.cartao || '').replace(/\D/g, ''), 10) || 0;
+        comparison = numA !== numB ? numA - numB : String(a.cartao || '').localeCompare(String(b.cartao || ''), 'pt-BR', { numeric: true });
+      } else if (sortField === 'colaborador') {
+        const cA = String(a.colaborador || '');
+        const cB = String(b.colaborador || '');
+        const c1 = cA.localeCompare(cB, 'pt-BR', { sensitivity: 'base' });
+        if (c1 !== 0) {
+          comparison = c1;
+        } else {
+          const empA = String(a.empresa || '');
+          const empB = String(b.empresa || '');
+          comparison = empA.localeCompare(empB, 'pt-BR', { sensitivity: 'base' });
+        }
+      } else if (sortField === 'retirada') {
+        const dataA = a.dataRetirada || '1970-01-01';
+        const horaA = a.horaRetirada ? (a.horaRetirada.length === 5 ? `${a.horaRetirada}:00` : a.horaRetirada) : '00:00:00';
+        const dataB = b.dataRetirada || '1970-01-01';
+        const horaB = b.horaRetirada ? (b.horaRetirada.length === 5 ? `${b.horaRetirada}:00` : b.horaRetirada) : '00:00:00';
+        const timeA = new Date(`${dataA}T${horaA}`).getTime() || 0;
+        const timeB = new Date(`${dataB}T${horaB}`).getTime() || 0;
+        comparison = timeA - timeB;
+      } else if (sortField === 'devolucao') {
+        const dataA = a.dataDevolucao || '1970-01-01';
+        const horaA = a.horaDevolucao ? (a.horaDevolucao.length === 5 ? `${a.horaDevolucao}:00` : a.horaDevolucao) : '00:00:00';
+        const dataB = b.dataDevolucao || '1970-01-01';
+        const horaB = b.horaDevolucao ? (b.horaDevolucao.length === 5 ? `${b.horaDevolucao}:00` : b.horaDevolucao) : '00:00:00';
+        const timeA = new Date(`${dataA}T${horaA}`).getTime() || 0;
+        const timeB = new Date(`${dataB}T${horaB}`).getTime() || 0;
+        comparison = timeA - timeB;
+      } else if (sortField === 'motivo') {
+        const mA = String(a.observacao || a.motivo || '');
+        const mB = String(b.observacao || b.motivo || '');
+        comparison = mA.localeCompare(mB, 'pt-BR', { sensitivity: 'base' });
+      } else if (sortField === 'vigilante') {
+        const vA = String(a.vigilante || a.vigilanteRetirada || '');
+        const vB = String(b.vigilante || b.vigilanteRetirada || '');
+        comparison = vA.localeCompare(vB, 'pt-BR', { sensitivity: 'base' });
+      }
 
-    return matchBusca && matchPortaria && matchSituacao && matchObs;
-  });
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
+  }, [dadosSeguros, busca, filtroPortaria, filtroSituacao, filtroObservacao, sortField, sortOrder]);
 
   // Salvar novo registro com regra dos 3 acessos e timestamp
   const handleSalvarNovaSaida = (novoRegistro) => {
-    const { novaLista, registroCompleto, verificacao } = registrarSaidaCredencial(registros, novoRegistro);
+    const { novaLista, registroCompleto, verificacao } = registrarSaidaCredencial(dadosSeguros, novoRegistro);
     setRegistros(novaLista);
 
     if (verificacao.ultrapassouLimite) {
@@ -185,14 +334,14 @@ export default function ControleProvisoriosView() {
     setRegistroParaBaixa(item);
     setDataBaixa(agora.toISOString().split('T')[0]);
     setHoraBaixa(agora.toTimeString().split(' ')[0].substring(0, 5));
-    setVigilanteRecebedor('Vigilante Portaria 1');
+    setVigilanteRecebedor(listaVigilantes[0] || 'Vigilante Portaria 1');
   };
 
   // Confirmar baixa / devolução do cartão
   const confirmarBaixaDevolucao = () => {
     if (!registroParaBaixa) return;
 
-    const novaLista = registrarBaixaDevolucao(registros, registroParaBaixa.id, {
+    const novaLista = registrarBaixaDevolucao(dadosSeguros, registroParaBaixa.id, {
       dataDevolucao: dataBaixa,
       horaDevolucao: horaBaixa,
       vigilanteDevolucao: vigilanteRecebedor
@@ -203,9 +352,41 @@ export default function ControleProvisoriosView() {
     setRegistroParaBaixa(null);
   };
 
+  // Quitação instantânea do ressarcimento financeiro (Marcar como Pago)
+  const handleMarcarComoPagoProvisorio = (item) => {
+    if (!item) return;
+    const confirmou = window.confirm(
+      `Confirmar ressarcimento financeiro da credencial provisória ${item.cartao} (${item.colaborador})?\n\nValor: R$ 30,00\nO débito será quitado e o card de métricas será atualizado.`
+    );
+    if (!confirmou) return;
+
+    const novaLista = marcarProvisorioComoPago(dadosSeguros, item.id, {
+      valorPago: 30,
+      dataPagamento: new Date().toISOString().split('T')[0]
+    });
+    setRegistros(novaLista);
+    showToast(`✓ Ressarcimento da credencial ${item.cartao} (${item.colaborador}) confirmado com sucesso!`, 'success');
+  };
+
+  // Declarar perda / extravio do cartão provisório
+  const handleRegistrarPerdaProvisorio = (item) => {
+    if (!item) return;
+    const confirmou = window.confirm(
+      `Declarar perda/extravio do cartão provisório ${item.cartao} (${item.colaborador})?\n\nEsta ação gerará uma pendência de ressarcimento (R$ 30,00) no painel de Perdidos vs. Ressarcidos.`
+    );
+    if (!confirmou) return;
+
+    const novaLista = registrarPerdaProvisorio(dadosSeguros, item.id, {
+      motivo: 'Extravio de credencial provisória'
+    });
+    setRegistros(novaLista);
+    setRegistroParaBaixa(null);
+    showToast(`⚠️ Extravio registrado para o cartão ${item.cartao}. Cobrança de 2ª via ativada.`, 'warning');
+  };
+
   // Abre modal de histórico para conferir as retiradas do colaborador
   const abrirHistoricoColaborador = (nomeColaborador) => {
-    const resultado = verificarRegraTresAcessos(registros, nomeColaborador, hojeStr);
+    const resultado = verificarRegraTresAcessos(dadosSeguros, nomeColaborador, hojeStr);
     setDetalhesColaborador({
       nome: nomeColaborador,
       ...resultado
@@ -263,85 +444,16 @@ export default function ControleProvisoriosView() {
 
       </div>
 
-      {/* NOVA BARRA DE PESQUISA E FILTROS DINÂMICOS (MINIMALISTA E HORIZONTAL) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        {/* Campo de Busca por Texto (Nome do Colaborador ou Empresa) */}
-        <div className="relative flex-1 min-w-[260px]">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Buscar por colaborador ou empresa..."
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-amber-500/70 transition-colors"
-          />
-        </div>
-
-        {/* Filtros em Linha & Ação Principal */}
-        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5">
-          {/* Filtro de Status (Todos, Devolvidos, Não Devolvidos) */}
-          <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1">
-            <Filter className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            <select
-              value={filtroSituacao}
-              onChange={(e) => setFiltroSituacao(e.target.value)}
-              className="bg-transparent border-0 py-1 text-xs text-slate-200 focus:outline-none font-semibold cursor-pointer"
-            >
-              <option value="TODAS" className="bg-slate-950 text-slate-200">Todos os Status</option>
-              <option value="DEVOLVIDO" className="bg-slate-950 text-emerald-400">Devolvidos</option>
-              <option value="NÃO DEVOLVIDO" className="bg-slate-950 text-red-400">Não Devolvidos</option>
-            </select>
-          </div>
-
-          {/* Filtro de Portaria */}
-          <select
-            value={filtroPortaria}
-            onChange={(e) => setFiltroPortaria(e.target.value)}
-            className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/70 font-medium cursor-pointer"
-          >
-            <option value="TODAS" className="bg-slate-950">Todas Portarias</option>
-            <option value="P1" className="bg-slate-950">Portaria 1 (P1)</option>
-            <option value="P2" className="bg-slate-950">Portaria 2 (P2)</option>
-          </select>
-
-          {/* Limpar Filtros */}
-          {(busca || filtroSituacao !== 'TODAS' || filtroPortaria !== 'TODAS') && (
-            <button
-              type="button"
-              onClick={() => {
-                setBusca('');
-                setFiltroSituacao('TODAS');
-                setFiltroPortaria('TODAS');
-              }}
-              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-              title="Limpar filtros"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-          )}
-
-          {/* Botão Principal + Nova Credencial */}
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-md shadow-amber-500/20 transition-all cursor-pointer shrink-0 whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Nova Credencial</span>
-          </button>
-        </div>
-      </div>
-
       {/* KPI METRIC CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {/* Card 1: Pendentes / Não Devolvidos */}
-        <div className="bg-slate-900 border border-red-900/40 rounded-xl p-4 flex items-center justify-between">
+        <div className="bg-slate-900 border border-red-900/40 rounded-xl p-4 flex items-center justify-between shadow-sm">
           <div>
             <p className="text-xs font-semibold text-red-400 uppercase tracking-wider">
               Pendentes de Devolução
             </p>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl font-extrabold text-white">{totalPendentes}</span>
+              <span className="text-2xl font-extrabold text-white">{metricas.totalPendentes}</span>
               <span className="text-[11px] text-red-300 font-medium">cartões retidos</span>
             </div>
             <p className="text-[10px] text-slate-500 mt-1">Sujeito a cobrança de 2ª via</p>
@@ -352,13 +464,13 @@ export default function ControleProvisoriosView() {
         </div>
 
         {/* Card 2: Devolvidos Hoje */}
-        <div className="bg-slate-900 border border-emerald-900/40 rounded-xl p-4 flex items-center justify-between">
+        <div className="bg-slate-900 border border-emerald-900/40 rounded-xl p-4 flex items-center justify-between shadow-sm">
           <div>
             <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
               Devolvidos Hoje
             </p>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl font-extrabold text-white">{totalDevolvidosHoje}</span>
+              <span className="text-2xl font-extrabold text-white">{metricas.totalDevolvidosHoje}</span>
               <span className="text-[11px] text-emerald-300 font-medium">baixas registradas</span>
             </div>
             <p className="text-[10px] text-slate-500 mt-1">Cartões retornados ao escaninho</p>
@@ -368,14 +480,63 @@ export default function ControleProvisoriosView() {
           </div>
         </div>
 
-        {/* Card 3: Regra dos 3 Acessos / Reincidentes no Mês */}
-        <div className="bg-slate-900 border border-amber-900/40 rounded-xl p-4 flex items-center justify-between">
+        {/* Card 3: Perdidos vs. Ressarcidos */}
+        <div className="bg-slate-900 border border-amber-900/40 rounded-xl p-4 flex flex-col justify-between shadow-sm">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider">
+              Perdidos vs. Ressarcidos
+            </p>
+            <div className="p-2 bg-amber-950/60 border border-amber-800/60 text-amber-400 rounded-lg">
+              <DollarSign className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setFiltroSituacao(filtroSituacao === 'PERDIDO' ? 'TODAS' : 'PERDIDO')}
+                className="group inline-flex items-baseline gap-1.5 cursor-pointer hover:scale-105 transition-transform"
+                title="Filtrar cartões provisórios Perdidos / A Cobrar"
+              >
+                <span className="text-2xl font-black text-red-400 group-hover:underline">{metricas.totalPerdidos}</span>
+                <span className="text-[11px] text-red-300 font-semibold">a cobrar</span>
+              </button>
+              <span className="text-slate-600">•</span>
+              <button
+                type="button"
+                onClick={() => setFiltroSituacao(filtroSituacao === 'PAGO' ? 'TODAS' : 'PAGO')}
+                className="group inline-flex items-baseline gap-1.5 cursor-pointer hover:scale-105 transition-transform"
+                title="Filtrar cartões provisórios Pagos / Ressarcidos"
+              >
+                <span className="text-2xl font-black text-emerald-400 group-hover:underline">{metricas.totalPagos}</span>
+                <span className="text-[11px] text-emerald-300 font-semibold">pagos</span>
+              </button>
+            </div>
+            {/* Barra de Progresso de Ressarcimento */}
+            <div className="w-full bg-slate-800 h-2 rounded-full mt-2 overflow-hidden border border-slate-750">
+              <div
+                className="bg-gradient-to-r from-amber-500 to-emerald-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${metricas.taxaRessarcimento}%` }}
+                title={`${metricas.taxaRessarcimento}% regularizados`}
+              ></div>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1 flex items-center justify-between font-mono">
+              <span>{metricas.taxaRessarcimento}% regularizados</span>
+              <span className="text-red-400 font-semibold">
+                {metricas.pendenteCobranca} pendentes de cobrança
+              </span>
+            </p>
+          </div>
+        </div>
+
+        {/* Card 4: Regra dos 3 Acessos / Reincidentes no Mês */}
+        <div className="bg-slate-900 border border-amber-900/40 rounded-xl p-4 flex items-center justify-between shadow-sm">
           <div>
             <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider">
               Alerta de Reincidência
             </p>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl font-extrabold text-white">{totalReincidentesUnicos}</span>
+              <span className="text-2xl font-extrabold text-white">{metricas.totalReincidentesUnicos}</span>
               <span className="text-[11px] text-amber-300 font-medium">colaboradores (≥ 3x)</span>
             </div>
             <p className="text-[10px] text-slate-500 mt-1">Limite mensal de 3 atingido</p>
@@ -385,14 +546,14 @@ export default function ControleProvisoriosView() {
           </div>
         </div>
 
-        {/* Card 4: Total de Movimentações */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+        {/* Card 5: Total de Movimentações */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-sm">
           <div>
             <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider">
               Total Registrado
             </p>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl font-extrabold text-white">{totalRegistros}</span>
+              <span className="text-2xl font-extrabold text-white">{metricas.totalRegistros}</span>
               <span className="text-[11px] text-slate-400 font-medium">movimentações</span>
             </div>
             <p className="text-[10px] text-slate-500 mt-1">Base local sincronizada</p>
@@ -440,7 +601,76 @@ export default function ControleProvisoriosView() {
         />
       </div>
 
+      {/* BARRA DE PESQUISA E FILTROS DINÂMICOS (POSICIONADA IMEDIATAMENTE ACIMA DOS REGISTROS) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        {/* Campo de Busca por Texto (Colaborador, Empresa, Cartão ou Matrícula) */}
+        <div className="relative flex-1 min-w-[260px]">
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+          <input
+            type="text"
+            placeholder="Buscar por colaborador, empresa, cartão ou matrícula..."
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-amber-500/70 transition-colors"
+          />
+        </div>
 
+        {/* Filtros em Linha & Ação Principal */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5">
+          {/* Filtro de Status (Todos, Devolvidos, Não Devolvidos, Perdidos / A Cobrar, Pagos) */}
+          <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1">
+            <Filter className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <select
+              value={filtroSituacao}
+              onChange={(e) => setFiltroSituacao(e.target.value)}
+              className="bg-transparent border-0 py-1 text-xs text-slate-200 focus:outline-none font-semibold cursor-pointer"
+            >
+              <option value="TODAS" className="bg-slate-950 text-slate-200">Todos os Status</option>
+              <option value="NÃO DEVOLVIDO" className="bg-slate-950 text-red-400">Não Devolvidos (Pendentes)</option>
+              <option value="DEVOLVIDO" className="bg-slate-950 text-emerald-400">Devolvidos</option>
+              <option value="PERDIDO" className="bg-slate-950 text-amber-400">Perdidos / A Cobrar</option>
+              <option value="PAGO" className="bg-slate-950 text-emerald-400">Pagos / Ressarcidos</option>
+            </select>
+          </div>
+
+          {/* Filtro de Portaria */}
+          <select
+            value={filtroPortaria}
+            onChange={(e) => setFiltroPortaria(e.target.value)}
+            className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/70 font-medium cursor-pointer"
+          >
+            <option value="TODAS" className="bg-slate-950">Todas Portarias</option>
+            <option value="P1" className="bg-slate-950">Portaria 1 (P1)</option>
+            <option value="P2" className="bg-slate-950">Portaria 2 (P2)</option>
+          </select>
+
+          {/* Limpar Filtros */}
+          {(busca || filtroSituacao !== 'TODAS' || filtroPortaria !== 'TODAS') && (
+            <button
+              type="button"
+              onClick={() => {
+                setBusca('');
+                setFiltroSituacao('TODAS');
+                setFiltroPortaria('TODAS');
+              }}
+              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+              title="Limpar filtros"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Botão Principal + Nova Credencial */}
+          <button
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-md shadow-amber-500/20 transition-all cursor-pointer shrink-0 whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Nova Credencial</span>
+          </button>
+        </div>
+      </div>
 
       {/* LISTA / REGISTROS DE CREDENCIAIS PROVISÓRIAS (FLEX 100% W-FULL SEM SCROLL HORIZONTAL) */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm w-full">
@@ -460,13 +690,61 @@ export default function ControleProvisoriosView() {
 
         {/* CABEÇALHO DA LISTA (FLEX w-full) */}
         <div className="w-full flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-950/90 border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
-          <div className="w-14 shrink-0">Cartão</div>
-          <div className="flex-1 min-w-0 pr-2">Colaborador & Empresa</div>
-          <div className="w-28 shrink-0">Retirada</div>
-          <div className="w-32 shrink-0">Devolução</div>
-          <div className="w-24 shrink-0">Motivo</div>
-          <div className="w-24 lg:w-28 shrink-0">Vigilante</div>
-          <div className="w-24 shrink-0 text-right">Ação</div>
+          <div
+            onClick={() => handleSort('cartao')}
+            className="w-14 shrink-0 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
+            title="Clique para ordenar por Cartão"
+          >
+            <span>Cartão</span>
+            {renderSortIndicator('cartao')}
+          </div>
+
+          <div
+            onClick={() => handleSort('colaborador')}
+            className="flex-1 min-w-0 pr-2 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
+            title="Clique para ordenar por Colaborador & Empresa"
+          >
+            <span>Colaborador & Empresa</span>
+            {renderSortIndicator('colaborador')}
+          </div>
+
+          <div
+            onClick={() => handleSort('retirada')}
+            className="w-28 shrink-0 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
+            title="Clique para ordenar por Data/Hora de Retirada"
+          >
+            <span>Retirada</span>
+            {renderSortIndicator('retirada')}
+          </div>
+
+          <div
+            onClick={() => handleSort('devolucao')}
+            className="w-32 shrink-0 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
+            title="Clique para ordenar por Data/Hora de Devolução"
+          >
+            <span>Devolução</span>
+            {renderSortIndicator('devolucao')}
+          </div>
+
+          <div
+            onClick={() => handleSort('motivo')}
+            className="w-24 shrink-0 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
+            title="Clique para ordenar por Motivo"
+          >
+            <span>Motivo</span>
+            {renderSortIndicator('motivo')}
+          </div>
+
+          <div
+            onClick={() => handleSort('vigilante')}
+            className="w-24 lg:w-28 shrink-0 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
+            title="Clique para ordenar por Vigilante"
+          >
+            <span>Vigilante</span>
+            {renderSortIndicator('vigilante')}
+          </div>
+
+          <div className="w-28 shrink-0 text-right">Ação</div>
         </div>
 
         {/* CORPO DA LISTA (LINHAS FLEX w-full) */}
@@ -477,26 +755,39 @@ export default function ControleProvisoriosView() {
             </div>
           ) : (
             registrosFiltrados.map((item) => {
-              const isPendente = item.situacao === 'NÃO DEVOLVIDO';
+              const isPerdido = item.situacao === 'PERDIDO' || item.status === 'PERDIDO' || (item.situacao === 'NÃO DEVOLVIDO' && item.observacao === 'PERDEU');
+              const isPago = item.situacao === 'PAGO' || item.status === 'PAGO';
+              const isDevolvido = (item.situacao === 'DEVOLVIDO' || item.status === 'DEVOLVIDO') && !isPago && !isPerdido;
+              const isPendente = !isDevolvido && !isPago && !isPerdido;
 
               // Verifica quantos acessos o colaborador fez no mês da retirada
-              const checkRegra = verificarRegraTresAcessos(registros, item.colaborador, item.dataRetirada);
+              const checkRegra = verificarRegraTresAcessos(dadosSeguros, item.colaborador, item.dataRetirada);
               const isReincidente = checkRegra.totalAcessosMes >= LIMITE_ACESSOS_MES;
 
               return (
                 <div
                   key={item.id}
-                  className={`w-full flex items-center justify-between gap-2 px-4 py-3 text-xs transition-colors ${isPendente
-                      ? 'bg-red-950/15 hover:bg-red-950/25'
-                      : 'hover:bg-slate-800/40'
-                    }`}
+                  className={`w-full flex items-center justify-between gap-2 px-4 py-3 text-xs transition-colors ${
+                    isPerdido
+                      ? 'bg-red-950/20 hover:bg-red-950/30 border-l-2 border-l-red-500'
+                      : isPago
+                        ? 'bg-emerald-950/10 hover:bg-emerald-950/20'
+                        : isPendente
+                          ? 'bg-red-950/15 hover:bg-red-950/25'
+                          : 'hover:bg-slate-800/40'
+                  }`}
                 >
                   {/* Cartão */}
                   <div className="w-14 shrink-0">
-                    <span className={`font-mono text-xs font-extrabold px-2 py-1 rounded-md border inline-block text-center ${isPendente
-                        ? 'bg-red-900/40 text-red-200 border-red-700/60'
-                        : 'bg-slate-800 text-slate-200 border-slate-700'
-                      }`}>
+                    <span className={`font-mono text-xs font-extrabold px-2 py-1 rounded-md border inline-block text-center ${
+                      isPerdido
+                        ? 'bg-red-900/60 text-red-200 border-red-600'
+                        : isPago
+                          ? 'bg-emerald-950/60 text-emerald-300 border-emerald-700/60'
+                          : isPendente
+                            ? 'bg-red-900/40 text-red-200 border-red-700/60'
+                            : 'bg-slate-800 text-slate-200 border-slate-700'
+                    }`}>
                       {item.cartao}
                     </span>
                   </div>
@@ -537,7 +828,22 @@ export default function ControleProvisoriosView() {
 
                   {/* Devolução (Permanência ou Status Pendente) */}
                   <div className="w-32 shrink-0">
-                    {item.dataDevolucao ? (
+                    {isPerdido ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-950/80 text-red-300 border border-red-800/60 animate-pulse">
+                        <AlertTriangle className="w-3 h-3 text-red-400" />
+                        Extraviado / Perda
+                      </span>
+                    ) : isPago ? (
+                      <div>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/70 text-emerald-300 border border-emerald-800/60">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          Ressarcido
+                        </span>
+                        {item.dataPagamento && (
+                          <p className="text-[10px] font-mono text-slate-400 mt-0.5">{formatarDataBr(item.dataPagamento)}</p>
+                        )}
+                      </div>
+                    ) : item.dataDevolucao ? (
                       <div className="text-slate-300">
                         <div className="flex items-center gap-1">
                           <span className="font-semibold text-emerald-400 text-[11px]">{formatarDataBr(item.dataDevolucao)}</span>
@@ -559,13 +865,14 @@ export default function ControleProvisoriosView() {
 
                   {/* Motivo / Observação */}
                   <div className="w-24 shrink-0">
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${item.observacao === 'PERDEU' || item.observacao === 'FURTADO'
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                      isPerdido || item.observacao === 'PERDEU' || item.observacao === 'FURTADO'
                         ? 'bg-red-500/20 text-red-300 border-red-500/40'
                         : item.observacao === 'ESQUECEU'
                           ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                           : 'bg-slate-800 text-slate-300 border-slate-700'
-                      }`}>
-                      {item.observacao}
+                    }`}>
+                      {item.observacao || 'N/A'}
                     </span>
                     {item.justificativa && (
                       <p className="text-[9px] text-slate-400 mt-0.5 italic truncate" title={item.justificativa}>
@@ -585,17 +892,34 @@ export default function ControleProvisoriosView() {
                   </div>
 
                   {/* Status / Ação (Sempre visível à direita sem scroll horizontal) */}
-                  <div className="w-24 shrink-0 flex items-center justify-end text-right">
-                    {isPendente ? (
+                  <div className="w-28 shrink-0 flex items-center justify-end text-right">
+                    {isPerdido ? (
                       <button
                         type="button"
-                        onClick={() => iniciarBaixa(item)}
-                        className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 transition-all shrink-0"
-                        title="Registrar devolução e horário de baixa deste cartão"
+                        onClick={() => handleMarcarComoPagoProvisorio(item)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white text-[11px] font-bold shadow-sm shadow-emerald-950/40 transition-all cursor-pointer shrink-0 whitespace-nowrap"
+                        title="Confirmar quitação/ressarcimento financeiro de 2ª via (Marcar como Pago)"
                       >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Baixa</span>
+                        <Check className="w-3 h-3 text-emerald-200" />
+                        <span>À Pagar</span>
                       </button>
+                    ) : isPago ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-emerald-950/40 text-emerald-400 border border-emerald-800/40 shrink-0">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        Quitado
+                      </span>
+                    ) : isPendente ? (
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => iniciarBaixa(item)}
+                          className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 transition-all shrink-0 cursor-pointer"
+                          title="Registrar devolução e horário de baixa deste cartão"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Baixa</span>
+                        </button>
+                      </div>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-emerald-950/40 text-emerald-400 border border-emerald-800/40 shrink-0">
                         <CheckCircle2 className="w-3 h-3" />
@@ -616,13 +940,13 @@ export default function ControleProvisoriosView() {
         onClose={() => setIsModalOpen(false)}
         onSalvar={handleSalvarNovaSaida}
         cartoesOcupados={cartoesOcupados}
-        registrosExistentes={registros}
+        registrosExistentes={dadosSeguros}
       />
 
       {/* MODAL DE REGISTRO DE BAIXA / DEVOLUÇÃO (COM TIMESTAMP EM TEMPO REAL) */}
       {registroParaBaixa && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-emerald-600/20 text-emerald-400 rounded-xl border border-emerald-500/30">
@@ -702,29 +1026,40 @@ export default function ControleProvisoriosView() {
                 onChange={(e) => setVigilanteRecebedor(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
               >
-                <option value="Vigilante Portaria 1">Vigilante Portaria 1</option>
-                <option value="Vigilante Portaria 2">Vigilante Portaria 2</option>
-                <option value="Vigilante Ronda">Vigilante Ronda</option>
-                <option value="Operador CCO">Operador CCO</option>
+                {listaVigilantes.map((v, i) => (
+                  <option key={i} value={v}>{v}</option>
+                ))}
               </select>
             </div>
 
-            <div className="pt-2 flex items-center justify-end gap-2.5">
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2.5">
               <button
                 type="button"
-                onClick={() => setRegistroParaBaixa(null)}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                onClick={() => handleRegistrarPerdaProvisorio(registroParaBaixa)}
+                className="h-[38px] px-3.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/60 text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                title="Declarar perda/extravio do cartão e acionar cobrança de 2ª via"
               >
-                Cancelar
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                <span>Extravio / Perda</span>
               </button>
-              <button
-                type="button"
-                onClick={confirmarBaixaDevolucao}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center gap-1.5"
-              >
-                <Check className="w-4 h-4" />
-                <span>Confirmar Baixa & Horário</span>
-              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRegistroParaBaixa(null)}
+                  className="h-[38px] px-3.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold inline-flex items-center justify-center transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarBaixaDevolucao}
+                  className="h-[38px] px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-950/50 inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>Confirmar Baixa & Horário</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

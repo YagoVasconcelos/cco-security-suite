@@ -1,5 +1,5 @@
 // Gerador Oficial de Documentação Técnica e de Usuário em PDF (Normas ABNT)
-// CCO Security Suite v1.0 - TecPrimus Soluções Tecnológicas (2026)
+// CCO Security Suite Rev 1.0 - TecPrimus Soluções Tecnológicas (2026)
 // Em conformidade com ABNT NBR 14724, NBR 6024, NBR 6027, NBR 6028 e Lei nº 9.609/1998 (INPI)
 
 const { app, BrowserWindow } = require('electron');
@@ -362,7 +362,7 @@ function generateDrsHtml() {
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>DRS - CCO Security Suite v1.0</title>
+  <title>DRS - CCO Security Suite Rev 1.0</title>
   <style>${css}</style>
 </head>
 <body>
@@ -380,7 +380,7 @@ function generateDrsHtml() {
     <div class="cover-title-box">
       <div class="cover-title">DOCUMENTO DE REQUISITOS DE SOFTWARE (DRS)</div>
       <div class="cover-subtitle">ESPECIFICAÇÃO DE REQUISITOS FUNCIONAIS, NÃO FUNCIONAIS E REGRAS DE NEGÓCIO DA CENTRAL DE CONTROLE OPERACIONAL</div>
-      <div class="cover-badge">SISTEMA CCO SECURITY SUITE — VERSÃO 1.0 (RELEASE DE PRODUÇÃO)</div>
+      <div class="cover-badge">SISTEMA CCO SECURITY SUITE — VERSÃO Rev 1.0 (RELEASE DE PRODUÇÃO)</div>
     </div>
 
     <div class="cover-footer">
@@ -398,7 +398,7 @@ function generateDrsHtml() {
 
     <div class="title-center">
       <h1>DOCUMENTO DE REQUISITOS DE SOFTWARE (DRS)</h1>
-      <h2>CCO SECURITY SUITE v1.0</h2>
+      <h2>CCO SECURITY SUITE Rev 1.0</h2>
     </div>
 
     <div class="title-natureza">
@@ -425,7 +425,7 @@ function generateDrsHtml() {
   <!-- SUMÁRIO (ABNT NBR 6027) -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Documento de Requisitos de Software</span>
+      <span>CCO Security Suite Rev 1.0 — Documento de Requisitos de Software</span>
       <span>Sumário</span>
     </div>
 
@@ -530,7 +530,7 @@ function generateDrsHtml() {
   <!-- PÁGINA 4: INTRODUÇÃO E ESCOPO -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Documento de Requisitos de Software</span>
+      <span>CCO Security Suite Rev 1.0 — Documento de Requisitos de Software</span>
       <span>1 Introdução e Escopo</span>
     </div>
 
@@ -548,12 +548,12 @@ function generateDrsHtml() {
       <li>Entregar inteligência acionável à gerência e fiscalização contratual através de relatórios formais em PDF com assinaturas digitais e bases analíticas em Excel.</li>
     </ul>
 
-    <h2 class="sec-2">1.2 Público-Alvo e Atores Envolvidos</h2>
-    <p>O software é operado por três perfis funcionais com atribuições delimitadas:</p>
+    <h2 class="sec-2">1.2 Arquitetura de Usuários e Separação Estrita de Papéis</h2>
+    <p>O sistema estabelece uma divisão rigorosa e auditável entre as atribuições operacionais da central e os postos físicos de campo:</p>
     <ul>
-      <li><strong>Operador de CCO:</strong> Usuário operacional responsável pelo preenchimento diário dos ROs, cadastro de credenciais provisórias nas portarias P1/P2, registro de visitantes e custódia de chaves RFID;</li>
-      <li><strong>Líder / Supervisor de Segurança:</strong> Responsável pela validação dos relatórios, conferência de escalas e extração dos consolidados do Dashboard;</li>
-      <li><strong>Administrador do Sistema:</strong> Detentor da <em>Senha Mestra</em>, com permissão exclusiva para modificar parâmetros, turnos, operadores autorizados e dados dos responsáveis contratuais.</li>
+      <li><strong>Operadores do Sistema (Central CCO):</strong> Únicos perfis com credenciais de login e acesso administrativo ao software da CCO. Responsáveis pela emissão de relatórios, gestão de parâmetros, custódia de dados, painel executivo e execução do módulo de backup;</li>
+      <li><strong>Efetivo de Vigilância de Campo:</strong> Cadastro dedicado aos profissionais alocados fisicamente nos postos operacionais (<strong>Portaria 1</strong>, <strong>Portaria 2</strong> e <strong>Ronda</strong>). Constam na base de dados exclusivamente para fins de responsabilidade funcional e vínculo na entrega e devolução de credenciais provisórias, <em>sem privilégios de acesso ou login no software</em>;</li>
+      <li><strong>Liderança e Fiscalização:</strong> Gerente de Site, Coordenação de Segurança e Fiscal de Contrato integrados como instâncias homologatórias superiores nos relatórios corporativos.</li>
     </ul>
 
     <div class="page-footer">
@@ -565,7 +565,7 @@ function generateDrsHtml() {
   <!-- PÁGINA 5: REQUISITOS FUNCIONAIS (RF01 e RF02) -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Documento de Requisitos de Software</span>
+      <span>CCO Security Suite Rev 1.0 — Documento de Requisitos de Software</span>
       <span>2 Requisitos Funcionais</span>
     </div>
 
@@ -578,7 +578,7 @@ function generateDrsHtml() {
       <li><strong>RF01.2 - Metadados Obrigatórios:</strong> O formulário deve registrar Data, Hora, Turno Operacional, Operador Responsável, Prédio Oficial, Setor/Área, Tópico e Grau de Severidade (Baixa, Média, Alta ou Crítica).</li>
       <li><strong>RF01.3 - Registro Dinâmico de Envolvidos:</strong> Possibilidade de inclusão de múltiplos colaboradores por ocorrência, registrando Nome, Empresa Contratada, Cargo e Vínculo (Autor, Vítima, Notificante ou Testemunha).</li>
       <li><strong>RF01.4 - Evidências Fotográficas:</strong> Suporte ao upload de múltiplas imagens com compressão em base64, visualização em miniatura e exclusão individual.</li>
-      <li><strong>RF01.5 - Geração Documental PDF A4:</strong> Compilação instantânea do documento com cabeçalho corporativo, corpo descritivo, galeria de fotos e rodapé para assinaturas do Gerente do Site, Coordenação de Segurança e Fiscal do Contrato.</li>
+      <li><strong>RF01.5 - Template Linear Estrito e Impressão Limpa (@media print):</strong> Compilação oficial estruturada em 9 níveis estritos: (1) Topo institucional azul escuro com Protocolo (RO-2026-XXXX) e Gravidade exclusivos na caixa lateral; (2) Subtítulo oficial destacado; (3) Grid superior fixo de aprovadores (Gerente de Site, Coordenação de Segurança, Fiscal de Contrato); (4) Seção 1 - Dados Gerais do Fato; (5) Título da Ocorrência; (6) Seção 2 - Relato Cronológico; (7) Seção 3 - Envolvidos com tabela formal sem inputs; (8) Seção 4 - Registro Fotográfico com legendas padronizadas (Anexo X - Legenda); (9) Rodapé padrão de auditoria (Página 1 de 1). Proibição estrita de caixas de assinatura picotadas, hashes criptográficos visuais ou poluição visual na impressão.</li>
       <li><strong>RF01.6 - Salvamento Multidestino:</strong> Gravação concorrente na base JSON local (<code>data/ocorrencias.json</code>), na planilha histórica (<code>ocorrencias.xlsx</code>) e na pasta de rede da CCO (<code>MAPA DE CALOR/</code>).</li>
     </ul>
 
@@ -600,7 +600,7 @@ function generateDrsHtml() {
   <!-- PÁGINA 6: REQUISITOS FUNCIONAIS (RF03, RF04 e RF05) -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Documento de Requisitos de Software</span>
+      <span>CCO Security Suite Rev 1.0 — Documento de Requisitos de Software</span>
       <span>2 Requisitos Funcionais</span>
     </div>
 
@@ -647,7 +647,7 @@ function generateDrsHtml() {
   <!-- PÁGINA 7: REQUISITOS NÃO FUNCIONAIS E RF06 -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Documento de Requisitos de Software</span>
+      <span>CCO Security Suite Rev 1.0 — Documento de Requisitos de Software</span>
       <span>3 Requisitos Não Funcionais</span>
     </div>
 
@@ -659,6 +659,14 @@ function generateDrsHtml() {
       <li><strong>RF06.3 - CRUD de Observações:</strong> Gerenciador de motivos de concessão de crachás provisórios;</li>
       <li><strong>RF06.4 - CRUD de Operadores:</strong> Gerenciador de operadores com matrícula e turno;</li>
       <li><strong>RF06.5 - Responsáveis do Site:</strong> Parametrização dos nomes do Gerente do Site, Coordenação e Fiscal para rodapés de relatórios e caminhos de rede.</li>
+    </ul>
+
+    <h2 class="sec-2">2.7 [RF07] Módulo de Backup & Restauração (Merge Inteligente Anti-Duplicidade)</h2>
+    <p>Localizado no painel restrito de Configurações, provê mecanismo seguro para preservação e consolidação de dados:</p>
+    <ul>
+      <li><strong>RF07.1 - Exportação Unificada via Electron SaveDialog:</strong> Coleta todos os arquivos JSON locais da aplicação e aciona a janela nativa do Windows (<code>dialog.showSaveDialog</code>) para salvar com nome padronizado (<code>backup_cco_YYYY-MM-DD_HH-mm-ss.json</code>);</li>
+      <li><strong>RF07.2 - Restauração Segura sem Duplicidade:</strong> Mecanismo de merge inteligente que compara registros por protocolos únicos (<code>RO-2026-XXXX</code>), chaves compostas e matrículas corporativas. Preserva dados locais, integra registros inéditos e impede compulsoriamente a duplicação ou perda de informações;</li>
+      <li><strong>RF07.3 - Diagnóstico Prévio Quantitativo:</strong> Modal de conferência que quantifica novos registros a integrar, registros preservados e duplicidades evitadas antes da confirmação.</li>
     </ul>
 
     <h1 class="sec-1">3 REQUISITOS NÃO FUNCIONAIS (RNF)</h1>
@@ -717,7 +725,7 @@ function generateDrsHtml() {
   <!-- PÁGINA 8: REGRAS DE NEGÓCIO CRUCIAIS -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Documento de Requisitos de Software</span>
+      <span>CCO Security Suite Rev 1.0 — Documento de Requisitos de Software</span>
       <span>4 Regras de Negócio</span>
     </div>
 
@@ -753,7 +761,7 @@ function generateDrsHtml() {
   <!-- PÁGINA 9: REGRAS DE NEGÓCIO (RN03 e RN04) E CONCLUSÃO -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Documento de Requisitos de Software</span>
+      <span>CCO Security Suite Rev 1.0 — Documento de Requisitos de Software</span>
       <span>4 Regras de Negócio</span>
     </div>
 
@@ -815,7 +823,7 @@ function generateManualHtml() {
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>Manual do Usuário - CCO Security Suite v1.0</title>
+  <title>Manual do Usuário - CCO Security Suite Rev 1.0</title>
   <style>${css}</style>
 </head>
 <body>
@@ -833,7 +841,7 @@ function generateManualHtml() {
     <div class="cover-title-box">
       <div class="cover-title">MANUAL DE OPERAÇÃO DO USUÁRIO</div>
       <div class="cover-subtitle">GUIA DE PROCEDIMENTOS OPERACIONAIS E DIRETRIZES DE USO DA CENTRAL DE CONTROLE OPERACIONAL (CCO)</div>
-      <div class="cover-badge">CCO SECURITY SUITE — VERSÃO 1.0</div>
+      <div class="cover-badge">CCO SECURITY SUITE — VERSÃO Rev 1.0</div>
     </div>
 
     <div class="cover-footer">
@@ -851,7 +859,7 @@ function generateManualHtml() {
 
     <div class="title-center">
       <h1>MANUAL DE OPERAÇÃO DO USUÁRIO</h1>
-      <h2>CCO SECURITY SUITE v1.0</h2>
+      <h2>CCO SECURITY SUITE Rev 1.0</h2>
     </div>
 
     <div class="title-natureza">
@@ -860,7 +868,7 @@ function generateManualHtml() {
 
     <div class="catalog-card">
       <div class="catalog-title">Ficha de Identificação do Manual Operacional</div>
-      <strong>Obra:</strong> Manual de Operação do Usuário – CCO Security Suite v1.0<br>
+      <strong>Obra:</strong> Manual de Operação do Usuário – CCO Security Suite Rev 1.0<br>
       <strong>Autoria e Desenvolvimento:</strong> Yago Marinho (TecPrimus Soluções Tecnológicas)<br>
       <strong>Data de Homologação:</strong> Setembro de 2026 | <strong>Edição:</strong> 1ª Edição Oficial<br>
       <strong>Ambiente Operacional:</strong> Microsoft Windows 10/11 (Desktop App)<br>
@@ -877,7 +885,7 @@ function generateManualHtml() {
   <!-- SUMÁRIO -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Manual de Operação do Usuário</span>
+      <span>CCO Security Suite Rev 1.0 — Manual de Operação do Usuário</span>
       <span>Sumário</span>
     </div>
 
@@ -961,14 +969,18 @@ function generateManualHtml() {
   <!-- PÁGINA 4: INTRODUÇÃO E NAVEGAÇÃO -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Manual de Operação do Usuário</span>
+      <span>CCO Security Suite Rev 1.0 — Manual de Operação do Usuário</span>
       <span>1 Introdução e Visão Geral</span>
     </div>
 
     <h1 class="sec-1">1 INTRODUÇÃO E VISÃO GERAL</h1>
 
-    <h2 class="sec-2">1.1 Boas-Vindas ao Operador de CCO</h2>
-    <p>Prezado(a) Operador(a), o <strong>CCO Security Suite</strong> é a sua ferramenta oficial de trabalho na Central de Controle Operacional. O software foi concebido para simplificar e acelerar a sua rotina, garantindo que nenhum incidente fique sem registro e que a circulação de pessoas e patrimônio ocorra com máxima conformidade.</p>
+    <h2 class="sec-2">1.1 Boas-Vindas e Separação de Papéis</h2>
+    <p>Prezado(a) Operador(a), o <strong>CCO Security Suite (Rev 1.0)</strong> é a sua ferramenta oficial de trabalho na Central de Controle Operacional. O sistema estabelece uma separação rigorosa de perfis:</p>
+    <ul>
+      <li><strong>Operadores da Central (CCO):</strong> Únicos usuários com login e acesso ao software desktop. Responsáveis por lançar e emitir ROs, conceder credenciais provisórias e gerenciar os parâmetros operacionais;</li>
+      <li><strong>Efetivo de Vigilância de Campo:</strong> Profissionais alocados nos postos externos (Portaria 1, Portaria 2 e Ronda). Não operam o software; seus cadastros existem estritamente para vínculo funcional e assinatura nas entregas/devoluções de crachás provisórios.</li>
+    </ul>
 
     <h2 class="sec-2">1.2 Navegação e Menu Lateral Corporativo</h2>
     <p>O aplicativo opera em modo desktop nativo no Windows, iniciando automaticamente maximizado. A navegação é realizada exclusivamente através do menu lateral escuro fixado à esquerda:</p>
@@ -996,7 +1008,7 @@ function generateManualHtml() {
   <!-- PÁGINA 5: EMISSÃO DE RO -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Manual de Operação do Usuário</span>
+      <span>CCO Security Suite Rev 1.0 — Manual de Operação do Usuário</span>
       <span>2 Guia de Operação</span>
     </div>
 
@@ -1025,7 +1037,7 @@ function generateManualHtml() {
       <li><strong>Descrição dos Fatos:</strong> Insira um título resumido e descreva no campo descritivo os fatos com imparcialidade e rigor cronológico, detalhando placas de veículos e áreas exatas.</li>
       <li><strong>Cadastro de Envolvidos:</strong> Clique em <em>+ Adicionar Envolvido</em> e cadastre cada pessoa citada, informando Nome, Empresa Contratada, Cargo e Tipo de Envolvimento.</li>
       <li><strong>Evidências Fotográficas:</strong> Clique em <em>Anexar Fotos</em> para anexar registros do CFTV ou fotos recebidas dos inspetores de campo.</li>
-      <li><strong>Conclusão e Salvamento:</strong> Clique em <em>Salvar Ocorrência e Gerar PDF</em>. O sistema salva na base local, atualiza a planilha Excel e grava o documento PDF formatado com assinaturas na rede (<code>MAPA DE CALOR/</code>).</li>
+      <li><strong>Conclusão, Visualização e Impressão Limpa:</strong> Clique em <em>Salvar Ocorrência e Gerar PDF</em>. O sistema grava os dados localmente, atualiza o Excel e gera o <strong>Template Linear Estrito Oficial</strong>: Topo azul escuro com Protocolo e Gravidade, Subtítulo formal, Grid superior de aprovadores (Gerente de Site, Coordenação de Segurança, Fiscal de Contrato), Seções 1 a 4 limpas e Rodapé padrão, sem qualquer poluição visual na impressão (@media print).</li>
     </ol>
 
     <div class="page-footer">
@@ -1037,7 +1049,7 @@ function generateManualHtml() {
   <!-- PÁGINA 6: PROVISÓRIOS E REINCIDÊNCIA -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Manual de Operação do Usuário</span>
+      <span>CCO Security Suite Rev 1.0 — Manual de Operação do Usuário</span>
       <span>2 Guia de Operação</span>
     </div>
 
@@ -1080,7 +1092,7 @@ function generateManualHtml() {
   <!-- PÁGINA 7: VISITANTES E RFID -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Manual de Operação do Usuário</span>
+      <span>CCO Security Suite Rev 1.0 — Manual de Operação do Usuário</span>
       <span>2 Guia de Operação</span>
     </div>
 
@@ -1119,7 +1131,7 @@ function generateManualHtml() {
   <!-- PÁGINA 8: CONFIGURAÇÕES E EXPORTAÇÃO PDF -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Manual de Operação do Usuário</span>
+      <span>CCO Security Suite Rev 1.0 — Manual de Operação do Usuário</span>
       <span>3 Exportação de Relatórios</span>
     </div>
 
@@ -1151,7 +1163,7 @@ function generateManualHtml() {
   <!-- PÁGINA 9: EXCEL, DICAS E ASSINATURAS -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Manual de Operação do Usuário</span>
+      <span>CCO Security Suite Rev 1.0 — Manual de Operação do Usuário</span>
       <span>4 Produtividade e Suporte</span>
     </div>
 
@@ -1201,7 +1213,7 @@ function generateArquiteturaHtml() {
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>Arquitetura e Implantação - CCO Security Suite v1.0</title>
+  <title>Arquitetura e Implantação - CCO Security Suite Rev 1.0</title>
   <style>${css}</style>
 </head>
 <body>
@@ -1219,7 +1231,7 @@ function generateArquiteturaHtml() {
     <div class="cover-title-box">
       <div class="cover-title">ARQUITETURA DE SOFTWARE E GUIA DE IMPLANTAÇÃO</div>
       <div class="cover-subtitle">ESPECIFICAÇÃO TÉCNICA DE TI, ESTRUTURA DE DADOS, PROCESSO DE COMPILAÇÃO E IMPLANTAÇÃO LIMPA (CLEAN DEPLOY)</div>
-      <div class="cover-badge">CCO SECURITY SUITE — VERSÃO 1.0</div>
+      <div class="cover-badge">CCO SECURITY SUITE — VERSÃO Rev 1.0</div>
     </div>
 
     <div class="cover-footer">
@@ -1237,7 +1249,7 @@ function generateArquiteturaHtml() {
 
     <div class="title-center">
       <h1>ARQUITETURA DE SOFTWARE E GUIA DE IMPLANTAÇÃO</h1>
-      <h2>CCO SECURITY SUITE v1.0</h2>
+      <h2>CCO SECURITY SUITE Rev 1.0</h2>
     </div>
 
     <div class="title-natureza">
@@ -1262,7 +1274,7 @@ function generateArquiteturaHtml() {
   <!-- SUMÁRIO -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Arquitetura de Software e Implantação</span>
+      <span>CCO Security Suite Rev 1.0 — Arquitetura de Software e Implantação</span>
       <span>Sumário</span>
     </div>
 
@@ -1358,7 +1370,7 @@ function generateArquiteturaHtml() {
   <!-- PÁGINA 4: VISÃO GERAL ARQUITETURA -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Arquitetura de Software e Implantação</span>
+      <span>CCO Security Suite Rev 1.0 — Arquitetura de Software e Implantação</span>
       <span>1 Visão Geral da Arquitetura</span>
     </div>
 
@@ -1390,7 +1402,7 @@ function generateArquiteturaHtml() {
   <!-- PÁGINA 5: ESTRUTURA DE DIRETÓRIOS -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Arquitetura de Software e Implantação</span>
+      <span>CCO Security Suite Rev 1.0 — Arquitetura de Software e Implantação</span>
       <span>2 Estrutura de Diretórios</span>
     </div>
 
@@ -1470,7 +1482,7 @@ function generateArquiteturaHtml() {
   <!-- PÁGINA 6: MODELO DE PERSISTÊNCIA -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Arquitetura de Software e Implantação</span>
+      <span>CCO Security Suite Rev 1.0 — Arquitetura de Software e Implantação</span>
       <span>3 Modelo de Persistência</span>
     </div>
 
@@ -1505,7 +1517,7 @@ function generateArquiteturaHtml() {
   <!-- PÁGINA 7: BUILD E COMPILAÇÃO -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Arquitetura de Software e Implantação</span>
+      <span>CCO Security Suite Rev 1.0 — Arquitetura de Software e Implantação</span>
       <span>4 Procedimentos de Build</span>
     </div>
 
@@ -1563,7 +1575,7 @@ function generateArquiteturaHtml() {
   <!-- PÁGINA 8: EXECUTÁVEIS E IMPLANTAÇÃO LIMPA -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Arquitetura de Software e Implantação</span>
+      <span>CCO Security Suite Rev 1.0 — Arquitetura de Software e Implantação</span>
       <span>5 Guia de Implantação</span>
     </div>
 
@@ -1596,7 +1608,7 @@ function generateArquiteturaHtml() {
   <!-- PÁGINA 9: BACKUP, REFERÊNCIAS E ASSINATURAS -->
   <div class="page">
     <div class="page-header">
-      <span>CCO Security Suite v1.0 — Arquitetura de Software e Implantação</span>
+      <span>CCO Security Suite Rev 1.0 — Arquitetura de Software e Implantação</span>
       <span>6 Referências Normativas</span>
     </div>
 

@@ -102,7 +102,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans antialiased print:h-auto print:overflow-visible print:bg-slate-950">
+    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans antialiased print:h-auto print:overflow-visible print:bg-transparent print:w-full print:m-0 print:p-0">
       {/* Modal de Senha Mestra (Acesso Restrito) */}
       <ModalSenhaMestra
         isOpen={modalSenhaAberto}
@@ -110,7 +110,7 @@ export default function App() {
         onSuccess={handleSenhaSucesso}
       />
 
-      {/* Modal Sobre o Sistema (Autoria & Licença v1.0) */}
+      {/* Modal Sobre o Sistema (Autoria & Licença Rev 1.0) */}
       <ModalSobre
         isOpen={modalSobreAberto}
         onClose={() => setModalSobreAberto(false)}
@@ -126,7 +126,7 @@ export default function App() {
       />
 
       {/* Área Principal de Conteúdo */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible print:w-full print:m-0 print:p-0 print:bg-transparent">
         {/* Header Superior Fixo com relógio ao vivo e status */}
         <Header 
           title={getModuleTitle()} 
@@ -134,7 +134,7 @@ export default function App() {
         />
 
         {/* Viewport dos Módulos com Rolagem Suave */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-950/80 print:p-0 print:overflow-visible print:bg-transparent">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-950/80 print:p-0 print:m-0 print:w-full print:overflow-visible print:bg-transparent">
           {activeModule === 'dashboard' && (
             <DashboardExecutivoView 
               onNavigate={handleSelectModule} 

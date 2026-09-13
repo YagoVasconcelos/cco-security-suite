@@ -36,6 +36,7 @@ const filesToReset = {
     caminhoRede: 'MAPA DE CALOR/2026/09.SETEMBRO'
   },
   'operadores.json': template.operadores || [],
+  'vigilantes.json': template.vigilantes || [],
   'turnos.json': template.turnos || [],
   'observacoes.json': template.observacoes || []
 };
@@ -52,6 +53,8 @@ const rootFilesToRemove = [
   'ocorrencias.xlsx',
   'operadores.json',
   'operadores.xlsx',
+  'vigilantes.json',
+  'vigilantes.xlsx',
   'responsaveis.json',
   'seguranca.json',
   'turnos.json',

@@ -1,12 +1,178 @@
 // Processo Principal do Electron - CCO Security Suite
 // Janela Nativa Corporativa, Sem Aparência de Navegador, Maximizada por Padrão
-const { app, BrowserWindow, Menu, shell } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { startServer } = require('./server.cjs');
 
 let mainWindow = null;
 let embeddedServer = null;
+
+// Handlers IPC para Diálogos Nativos do Windows (Seleção de Pasta e Abertura no Explorer)
+const handleOpenDirectory = async (event, currentPath) => {
+  try {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow;
+    const documents = app.getPath('documents');
+    const defaultDir = (currentPath && typeof currentPath === 'string' && fs.existsSync(currentPath))
+      ? currentPath
+      : documents;
+
+    const dialogOptions = {
+      title: 'Selecionar Diretório para Salvamento de Relatórios e Ocorrências',
+      defaultPath: defaultDir,
+      buttonLabel: 'Selecionar Pasta',
+      properties: ['openDirectory', 'createDirectory']
+    };
+
+    const result = win
+      ? await dialog.showOpenDialog(win, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions);
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return null;
+    }
+    return result.filePaths[0];
+  } catch (err) {
+    console.error('[Electron IPC] Erro ao abrir diálogo de seleção de pasta:', err);
+    return null;
+  }
+};
+
+ipcMain.handle('dialog:openDirectory', handleOpenDirectory);
+ipcMain.handle('dialog:selecionarPasta', handleOpenDirectory);
+
+// Handler nativo do Electron para salvar arquivo de backup com dialog.showSaveDialog
+ipcMain.handle('dialog:salvarArquivoBackup', async (event, { conteudoJson, nomeSugerido }) => {
+  try {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow;
+    const documents = app.getPath('documents');
+    const defaultName = nomeSugerido || `backup_cco_${new Date().toISOString().slice(0, 10)}.json`;
+    const defaultPath = path.join(documents, 'CCO Security Suite', defaultName);
+
+    const dialogOptions = {
+      title: 'Salvar Arquivo de Backup Completo - CCO Security Suite',
+      defaultPath,
+      buttonLabel: 'Salvar Backup',
+      filters: [
+        { name: 'Arquivo de Backup CCO (*.json)', extensions: ['json'] },
+        { name: 'Todos os Arquivos (*.*)', extensions: ['*'] }
+      ]
+    };
+
+    const result = win
+      ? await dialog.showSaveDialog(win, dialogOptions)
+      : await dialog.showSaveDialog(dialogOptions);
+
+    if (result.canceled || !result.filePath) {
+      return { canceled: true };
+    }
+
+    const payload = typeof conteudoJson === 'string' ? conteudoJson : JSON.stringify(conteudoJson, null, 2);
+    fs.writeFileSync(result.filePath, payload, 'utf-8');
+    return { canceled: false, filePath: result.filePath };
+  } catch (err) {
+    console.error('[Electron IPC] Erro ao salvar arquivo de backup:', err);
+    return { canceled: false, error: err.message };
+  }
+});
+
+// Handler nativo do Electron para selecionar e ler arquivo de backup com dialog.showOpenDialog
+ipcMain.handle('dialog:selecionarArquivoBackup', async () => {
+  try {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow;
+    const documents = app.getPath('documents');
+    const defaultPath = path.join(documents, 'CCO Security Suite');
+
+    const dialogOptions = {
+      title: 'Selecionar Arquivo de Backup para Restauração - CCO Security Suite',
+      defaultPath: fs.existsSync(defaultPath) ? defaultPath : documents,
+      buttonLabel: 'Carregar Backup',
+      filters: [
+        { name: 'Arquivo de Backup CCO (*.json)', extensions: ['json'] },
+        { name: 'Todos os Arquivos (*.*)', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    };
+
+    const result = win
+      ? await dialog.showOpenDialog(win, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions);
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return { canceled: true };
+    }
+
+    const filePath = result.filePaths[0];
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return { canceled: false, filePath, content };
+  } catch (err) {
+    console.error('[Electron IPC] Erro ao abrir arquivo de backup:', err);
+    return { canceled: false, error: err.message };
+  }
+});
+
+ipcMain.handle('app:obterDiretoriosPadrao', () => {
+  const documents = app.getPath('documents');
+  const userData = app.getPath('userData');
+  const defaultExport = path.join(documents, 'CCO Security Suite', 'exports');
+  return {
+    documents,
+    userData,
+    defaultExport
+  };
+});
+
+// Handler nativo para exportação em PDF idêntica à impressão via Chromium printToPDF
+ipcMain.handle('app:salvarPdfNativo', async (event, { nomeSugerido, paisagem = true } = {}) => {
+  try {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow;
+    if (!win) throw new Error('Janela do aplicativo não encontrada');
+
+    const pdfBuffer = await win.webContents.printToPDF({
+      landscape: paisagem,
+      printBackground: true,
+      preferCSSPageSize: true,
+      pageSize: 'A4'
+    });
+
+    const documents = app.getPath('documents');
+    const exportsDir = path.join(documents, 'CCO Security Suite', 'exports');
+    if (!fs.existsSync(exportsDir)) {
+      fs.mkdirSync(exportsDir, { recursive: true });
+    }
+
+    const defaultName = nomeSugerido || `Dashboard_Executivo_CCO_${new Date().toISOString().slice(0, 10)}.pdf`;
+    const destPath = path.join(exportsDir, defaultName);
+    fs.writeFileSync(destPath, pdfBuffer);
+
+    return { sucesso: true, caminho: destPath, nomeArquivo: defaultName };
+  } catch (err) {
+    console.error('[Electron IPC] Erro ao gerar PDF nativo via printToPDF:', err);
+    return { sucesso: false, error: err.message };
+  }
+});
+
+ipcMain.handle('shell:abrirPasta', async (event, folderPath) => {
+  try {
+    const documents = app.getPath('documents');
+    const defaultExports = path.join(documents, 'CCO Security Suite', 'exports');
+    const targetDir = (folderPath && typeof folderPath === 'string' && folderPath.trim())
+      ? (path.isAbsolute(folderPath.trim())
+          ? folderPath.trim()
+          : path.join(documents, 'CCO Security Suite', folderPath.trim()))
+      : defaultExports;
+
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    await shell.openPath(targetDir);
+    return true;
+  } catch (err) {
+    console.warn('[Electron] Erro ao abrir pasta no Windows Explorer:', err.message);
+    return false;
+  }
+});
+
 
 // Garante que apenas uma instância do aplicativo seja executada por vez
 const gotTheLock = app.requestSingleInstanceLock();
@@ -98,10 +264,14 @@ async function createWindow() {
     }
 
     try {
+      const documentsDir = app.getPath('documents');
+      const userDataDir = app.getPath('userData');
       const { port } = await startServer({
         port: 3000,
         staticDir,
-        rootDir
+        rootDir,
+        documentsDir,
+        userDataDir
       });
       console.log(`[Electron Prod] Servidor embutido ativo na porta ${port}`);
       await mainWindow.loadURL(`http://127.0.0.1:${port}`);

@@ -55,7 +55,7 @@ export default function ModalSobre({ isOpen, onClose }) {
                   CCO Security Suite
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-500/20 text-blue-400 border border-blue-500/40 uppercase tracking-wider">
-                  v1.0 Produção
+                  Rev 1.0 Produção
                 </span>
               </div>
               <p className="text-xs text-slate-400 font-medium">

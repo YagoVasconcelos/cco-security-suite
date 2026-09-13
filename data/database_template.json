@@ -13,21 +13,34 @@
     "caminhoRede": "MAPA DE CALOR/2026/09.SETEMBRO",
     "atualizadoEm": "2026-01-01T00:00:00.000Z"
   },
-  "operadores": [
+  "operadores": [],
+  "vigilantes": [
     {
-      "id": "op-1",
-      "nome": "Op. Operador 01",
-      "matricula": "CCO-1001",
-      "cargo": "Operador CCO",
+      "id": "vig-1",
+      "nome": "Vigilante Portaria 1",
+      "matricula": "VIG-2001",
+      "posto": "Portaria 1 - Principal",
+      "cargo": "Vigilante Portaria 1",
       "turno": "12x36 Diurno",
       "status": "Ativo",
       "dataCadastro": "2026-01-01"
     },
     {
-      "id": "op-2",
-      "nome": "Op. Operador 02",
-      "matricula": "CCO-1002",
-      "cargo": "Operador CCO Líder",
+      "id": "vig-2",
+      "nome": "Vigilante Portaria 2",
+      "matricula": "VIG-2002",
+      "posto": "Portaria 2 - Cargas & Serviços",
+      "cargo": "Vigilante Portaria 2",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-3",
+      "nome": "Vigilante Ronda",
+      "matricula": "VIG-2003",
+      "posto": "Ronda Operacional",
+      "cargo": "Vigilante Ronda",
       "turno": "12x36 Diurno",
       "status": "Ativo",
       "dataCadastro": "2026-01-01"

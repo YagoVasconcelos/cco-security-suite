@@ -35,27 +35,159 @@
 }
 
 /* ==========================================================================
-   REGRAS ESPECÍFICAS DE IMPRESSÃO NATIVA (FORÇAR PAISAGEM / LANDSCAPE)
+   REGRAS ESPECÍFICAS DE IMPRESSÃO NATIVA CORPORATIVA (RO & DASHBOARD)
    ========================================================================== */
 @page {
   size: landscape;
-  margin: 8mm;
+  margin: 6mm 8mm;
+}
+
+@page portrait {
+  size: portrait;
+  margin: 8mm 8mm 12mm 8mm;
 }
 
 @media print {
-  /* Oculta Sidebar, Header do sistema, botões de ação e modais */
+  /* Oculta Sidebar, Header do sistema, botões de ação, modais e o formulário de edição */
   aside,
   header,
+  nav,
   .no-print,
   button,
-  .modal-overlay {
+  .modal-overlay,
+  .modal-backdrop,
+  [role="dialog"],
+  .ro-editor-container,
+  .ro-controls-banner,
+  .toast-notification {
     display: none !important;
   }
 
-  /* Garante cores e fundo nítidos na impressão */
-  html, body, #root, main {
-    background-color: #020617 !important;
-    color: #f8fafc !important;
+  /* Garante exibição estrita e limpa do Relatório Formal Executivo */
+  .ro-formal-document {
+    display: block !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .ro-formal-document .ro-oficial-wrapper {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .ro-formal-document * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .ro-formal-document .ro-header-banner {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    border-bottom: 3px solid #2563eb !important;
+  }
+
+  .ro-formal-document .ro-section-header {
+    background-color: #1e293b !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+  }
+
+  .ro-formal-document .ro-card {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+
+  .ro-formal-document .ro-card-muted {
+    background-color: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+
+  .ro-formal-document .ro-table th {
+    background-color: #334155 !important;
+    color: #ffffff !important;
+    border: 1px solid #475569 !important;
+  }
+
+  .ro-formal-document .ro-table td {
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+
+  .ro-formal-document .ro-table tr:nth-child(even) td {
+    background-color: #f8fafc !important;
+  }
+
+  /* ==========================================================================
+     RODAPÉ OFICIAL EM LINHA ÚNICA FIXO NA BASE DA PÁGINA (@media print)
+     ========================================================================== */
+  body {
+    counter-reset: page;
+  }
+
+  .ro-footer-container {
+    border-top: none !important;
+    padding-top: 0 !important;
+    margin: 0 !important;
+  }
+
+  .ro-print-footer {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    background-color: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 4px !important;
+    padding: 6px 14px !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    font-size: 8.5px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    z-index: 9999 !important;
+    box-sizing: border-box !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .ro-print-footer * {
+    white-space: nowrap !important;
+  }
+
+  .ro-print-page-counter::after {
+    content: "Página " counter(page);
+  }
+
+  /* Espaço de segurança inferior no corpo do documento para não haver sobreposição pelo rodapé fixo */
+  .ro-formal-document .ro-oficial-wrapper {
+    padding-bottom: 15mm !important;
+  }
+
+  /* Garante cores e fundo nítidos na impressão do RO (Relatório de Ocorrência) */
+  body:has(.ro-formal-document),
+  body:has(.ro-formal-document) #root,
+  body:has(.ro-formal-document) main,
+  .ro-formal-document {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     overflow: visible !important;
@@ -67,67 +199,294 @@
     padding: 0 !important;
   }
 
-  /* Força a exibição fiel do grid em 4 colunas lado a lado (sem empilhar) */
+  /* ==========================================================================
+     REGRAS DE IMPRESSÃO DO DASHBOARD EXECUTIVO (EXATAMENTE 4 PÁGINAS)
+     ========================================================================== */
+
+  /* Força a exibição fiel do grid em 4 colunas lado a lado */
   .print-dashboard-kpis {
     display: grid !important;
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    gap: 12px !important;
+    gap: 5px !important;
     width: 100% !important;
+    margin: 0 !important;
   }
 
-  /* Força a exibição das 4 tabelas de detalhamento em grid 2x2 no papel paisagem */
+  /* Força a exibição das tabelas de detalhamento em grid 2x2 no papel paisagem */
   .print-dashboard-detalhamento {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 12px !important;
+    gap: 5px !important;
     width: 100% !important;
+    margin: 0 !important;
   }
 
-  /* Força a exibição dos painéis analíticos lado a lado (2 colunas + 1 coluna) */
+  /* Força a exibição dos painéis analíticos lado a lado */
   .print-dashboard-panels {
     display: grid !important;
     grid-template-columns: 2fr 1fr !important;
-    gap: 16px !important;
+    gap: 6px !important;
     width: 100% !important;
+    margin: 0 !important;
   }
 
   /* Força a exibição dos 4 atalhos lado a lado */
   .print-dashboard-shortcuts {
     display: grid !important;
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    gap: 12px !important;
+    gap: 5px !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  /* Quebra automática e formatação fluida para relatos e textos */
+  p, span, div, td {
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  /* ==========================================================================
+     ESTRUTURAÇÃO RÍGIDA DOS DASHBOARDS EM EXATAMENTE 4 PÁGINAS PAISAGEM
+     (1 PÁGINA DEDICADA POR MÓDULO - ZERO QUEBRAS INTERNAS)
+     ========================================================================== */
+  @page {
+    size: landscape !important;
+    margin: 6mm 10mm !important;
+  }
+
+  html, body, #root {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
     width: 100% !important;
   }
 
-  /* Evita quebras indesejadas de página dentro de containers, cards e linhas de tabelas */
-  .print-avoid-break,
-  .print-dashboard-kpis > div,
-  .print-dashboard-detalhamento > div,
-  .print-dashboard-panels > div,
-  .print-dashboard-shortcuts > div,
-  table,
-  tbody,
-  tr,
-  td,
-  th {
+  /* Ocultar elementos desnecessários na impressão */
+  .no-print,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset de wrappers para evitar margens fantasmas ou restrições de largura */
+  .max-w-7xl {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* MOTOR EXECUTIVO OFICIAL CCO DE IMPRESSÃO & PDF (RELATÓRIO DEDICADO) */
+  .cco-print-root {
+    display: block !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .cco-print-page {
+    page: landscape !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 196mm !important;
+    max-height: 196mm !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    padding: 3mm 4mm !important;
+  }
+
+  .cco-print-page.page-break {
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
+  .cco-print-page.no-break {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  .cco-print-page * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .cco-print-page tr {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
 
-  tr {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-
-  /* Bordas e fundos para manter legibilidade em papel */
-  .bg-slate-900, .bg-slate-950 {
-    background-color: #0f172a !important;
-    border-color: #334155 !important;
-  }
-
-  /* Remove sombras que borram em impressão */
-  * {
+  /* ==========================================================================
+     DENSIDADE E COMPACTAÇÃO DOS CARDS E PAINÉIS (CABE EM 1 PÁGINA POR MÓDULO)
+     ========================================================================== */
+  .dashboard-page-landscape .rounded-2xl,
+  .dashboard-page-landscape .rounded-xl {
+    border-radius: 6px !important;
     box-shadow: none !important;
-    text-shadow: none !important;
+  }
+
+  .dashboard-page-landscape .bg-slate-900,
+  .dashboard-page-landscape .bg-slate-950,
+  .dashboard-page-landscape .bg-slate-900\/90,
+  .dashboard-page-landscape .bg-slate-900\/80,
+  .dashboard-page-landscape .bg-slate-950\/70,
+  .dashboard-page-landscape .bg-slate-950\/60,
+  .dashboard-page-landscape .bg-slate-950\/30 {
+    background-color: #0f172a !important;
+    background: #0f172a !important;
+    border: 1px solid #1e293b !important;
+    border-color: #1e293b !important;
+    color: #ffffff !important;
+  }
+
+  /* Cabeçalho compacto */
+  .dashboard-page-landscape .border-b {
+    padding-bottom: 2px !important;
+    margin-bottom: 2px !important;
+  }
+  .dashboard-page-landscape h2 {
+    font-size: 11px !important;
+    line-height: 1.1 !important;
+  }
+
+  /* Informações do Operador - Canto Superior Direito */
+  .dashboard-page-landscape .header-operador-compacto {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    text-align: right !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+  }
+  .dashboard-page-landscape .header-operador-compacto div {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    text-align: right !important;
+  }
+  .dashboard-page-landscape .header-operador-compacto .text-xs {
+    font-size: 8.5px !important;
+    line-height: 1.2 !important;
+  }
+  .dashboard-page-landscape .header-operador-compacto .text-\[11px\] {
+    font-size: 7.5px !important;
+    line-height: 1.2 !important;
+  }
+  .dashboard-page-landscape .header-operador-compacto .text-\[10px\] {
+    font-size: 7px !important;
+    padding: 1px 3px !important;
+  }
+  .dashboard-page-landscape .header-operador-compacto span {
+    line-height: 1.1 !important;
+  }
+
+  /* Cards de KPIs densos com padding simétrico */
+  .dashboard-page-landscape .print-dashboard-kpis > div {
+    padding: 3.5px 8px !important;
+    min-height: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .dashboard-page-landscape .print-dashboard-kpis span.uppercase {
+    font-size: 8px !important;
+    font-weight: 700 !important;
+    color: #cbd5e1 !important;
+    line-height: 1 !important;
+  }
+  .dashboard-page-landscape .print-dashboard-kpis .text-3xl {
+    font-size: 16px !important;
+    line-height: 1 !important;
+    margin-top: 1px !important;
+  }
+  .dashboard-page-landscape .print-dashboard-kpis p {
+    font-size: 7px !important;
+    margin-top: 1px !important;
+    line-height: 1.1 !important;
+  }
+
+  /* Painel analítico central compacto com padding simétrico */
+  .dashboard-page-landscape .p-6,
+  .dashboard-page-landscape .p-5,
+  .dashboard-page-landscape .p-4 {
+    padding: 3.5px 8px !important;
+    box-sizing: border-box !important;
+  }
+  .dashboard-page-landscape .mt-4,
+  .dashboard-page-landscape .mt-5,
+  .dashboard-page-landscape .mt-3 {
+    margin-top: 2.5px !important;
+  }
+
+  /* Tabelas densas e compactas com ajuste fluido */
+  .dashboard-page-landscape table {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+    box-sizing: border-box !important;
+  }
+  .dashboard-page-landscape th {
+    background-color: #1e293b !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid #334155 !important;
+    font-size: 7.5px !important;
+    padding: 2px 4px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .dashboard-page-landscape td {
+    border-bottom: 1px solid #1e293b !important;
+    color: #f1f5f9 !important;
+    font-size: 7.5px !important;
+    padding: 2px 4px !important;
+    line-height: 1.1 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .dashboard-page-landscape tr:nth-child(even) td {
+    background-color: #162032 !important;
+  }
+
+  /* Limitação estrita de linhas em modo impresso: 
+     Exibe até 3 linhas nas tabelas de 4 grids (D1, D2, D3) e até 5 linhas nas de 2 grids (D4) */
+  .dashboard-page-1 table tbody tr:nth-child(n+4),
+  .dashboard-page-2 table tbody tr:nth-child(n+4),
+  .dashboard-page-3 table tbody tr:nth-child(n+4) {
+    display: none !important;
+  }
+  .dashboard-page-4 table tbody tr:nth-child(n+6) {
+    display: none !important;
+  }
+
+  /* Rodapé do dashboard */
+  .dashboard-page-landscape .pt-3.border-t {
+    padding-top: 1.5px !important;
+    margin-top: 1.5px !important;
+    font-size: 7.5px !important;
   }
 }
+
+/* Estilos de tela para container de dashboards */
+.dashboard-page-landscape {
+  position: relative;
+  transition: all 0.2s ease-in-out;
+}
+

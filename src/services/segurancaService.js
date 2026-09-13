@@ -15,14 +15,17 @@ export async function obterSenhaMestra() {
   try {
     const res = await fetch('/api/seguranca');
     if (res.ok) {
-      const data = await res.json();
-      if (data && data.senhaMestra) {
-        // Sincroniza cache local
-        localStorage.setItem(STORAGE_KEY, data.senhaMestra);
-        return {
-          senhaMestra: data.senhaMestra,
-          dataAtualizacao: data.dataAtualizacao || new Date().toISOString()
-        };
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        if (data && data.senhaMestra) {
+          // Sincroniza cache local
+          localStorage.setItem(STORAGE_KEY, data.senhaMestra);
+          return {
+            senhaMestra: data.senhaMestra,
+            dataAtualizacao: data.dataAtualizacao || new Date().toISOString()
+          };
+        }
       }
     }
   } catch (err) {
@@ -52,7 +55,7 @@ export async function validarSenhaMestra(senhaDigitada) {
 }
 
 /**
- * Altera a Senha Mestra do sistema.
+ * Altera a Senha Mestra do sistema com persistência em disco.
  * @param {string} senhaAtual 
  * @param {string} novaSenha 
  * @returns {Promise<{ success: boolean, message: string }>}
@@ -66,48 +69,68 @@ export async function alterarSenhaMestra(senhaAtual, novaSenha) {
     throw new Error('A nova senha deve possuir pelo menos 4 caracteres.');
   }
 
-  // Tenta persistir no backend JSON
+  const novaSenhaLimpa = novaSenha.trim();
+
+  // Tenta persistir no backend JSON (tenta /api/salvar-senha e fallback para /api/seguranca)
   try {
-    const res = await fetch('/api/salvar-senha', {
+    let res = await fetch('/api/salvar-senha', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ senhaAtual, novaSenha: novaSenha.trim() })
+      body: JSON.stringify({ senhaAtual, novaSenha: novaSenhaLimpa })
     });
 
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Erro ao alterar a senha mestra.');
+    if (res.status === 404) {
+      res = await fetch('/api/seguranca', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senhaAtual, novaSenha: novaSenhaLimpa })
+      });
     }
 
-    // Atualiza cache local
-    localStorage.setItem(STORAGE_KEY, novaSenha.trim());
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao alterar a senha mestra.');
+      }
 
-    // Dispara evento global
-    window.dispatchEvent(new CustomEvent('cco_senha_changed', {
-      detail: { dataAtualizacao: new Date().toISOString() }
-    }));
+      // Atualiza cache local
+      localStorage.setItem(STORAGE_KEY, novaSenhaLimpa);
 
-    return {
-      success: true,
-      message: data.message || 'Senha mestra alterada com sucesso!'
-    };
+      // Dispara evento global
+      window.dispatchEvent(new CustomEvent('cco_senha_changed', {
+        detail: { dataAtualizacao: data.dataAtualizacao || new Date().toISOString() }
+      }));
+
+      return {
+        success: true,
+        message: data.message || 'Senha mestra alterada com sucesso!'
+      };
+    } else {
+      throw new Error('Resposta inválida do servidor ao salvar senha.');
+    }
   } catch (err) {
-    // Se o backend estiver indisponível, faz validação e persistência local
-    console.warn('[segurancaService] API indisponível, processando localmente:', err);
+    // Se o backend retornou erro de credencial incorreta, propaga imediatamente
+    if (err.message && (err.message.includes('incorreta') || err.message.includes('obrigatória') || err.message.includes('caracteres'))) {
+      throw err;
+    }
+
+    // Se o backend estiver indisponível por problema de rede, valida localmente
+    console.warn('[segurancaService] API indisponível, processando validação local:', err);
 
     const senhaSalva = localStorage.getItem(STORAGE_KEY) || SENHA_PADRAO;
     if (senhaAtual.trim() !== senhaSalva.trim()) {
-      throw new Error('A senha atual informada está incorreta.');
+      throw new Error('A senha mestra atual informada está incorreta.');
     }
 
-    localStorage.setItem(STORAGE_KEY, novaSenha.trim());
+    localStorage.setItem(STORAGE_KEY, novaSenhaLimpa);
     window.dispatchEvent(new CustomEvent('cco_senha_changed', {
       detail: { dataAtualizacao: new Date().toISOString() }
     }));
 
     return {
       success: true,
-      message: 'Senha mestra atualizada no cache local com sucesso!'
+      message: 'Senha mestra atualizada no armazenamento local com sucesso!'
     };
   }
 }

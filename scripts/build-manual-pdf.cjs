@@ -83,7 +83,7 @@ app.whenReady().then(async () => {
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>Manual de Operação - CCO Security Suite v1.0</title>
+  <title>Manual de Operação - CCO Security Suite Rev 1.0</title>
   <style>
     @page {
       size: A4 portrait;
@@ -291,7 +291,7 @@ app.whenReady().then(async () => {
 <body>
   <div class="manual-header-badge">
     <div>
-      <div class="header-logo-text">CCO <span>SECURITY SUITE</span> v1.0</div>
+      <div class="header-logo-text">CCO <span>SECURITY SUITE</span> Rev 1.0</div>
       <div class="header-subtitle">TecPrimus Soluções Tecnológicas • Ano 2026</div>
     </div>
     <div style="text-align: right; font-size: 8.5pt; color: #64748b; font-weight: 600;">

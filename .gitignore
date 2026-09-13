@@ -43,6 +43,10 @@ responsaveis.json
 seguranca.json
 turnos.json
 observacoes.json
+provisorios.json
+rfid.json
+vigilantes.json
+visitantes.json
 
 # 3. Planilhas Excel com Dados e Registros Reais da Operação
 *.xlsx

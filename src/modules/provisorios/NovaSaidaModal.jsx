@@ -17,18 +17,16 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { verificarRegraTresAcessos, formatarDataBr } from '../../services/provisoriosService';
-
-const VIGILANTES_PADRAO = [
-  'Vigilante Portaria 1',
-  'Vigilante Portaria 2',
-  'Vigilante Ronda',
-  'Operador CCO'
-];
-
+import { 
+  carregarVigilantes, 
+  obterNomesVigilantesAtivos 
+} from '../../services/vigilantesService';
 import { 
   carregarObservacoes, 
   obterNomesObservacoesAtivas 
 } from '../../services/observacoesService';
+import AutocompleteInput from '../../components/common/AutocompleteInput';
+import { salvarPessoaUnificada } from '../../services/baseUnificadaService';
 
 export default function NovaSaidaModal({ 
   isOpen, 
@@ -59,7 +57,8 @@ export default function NovaSaidaModal({
     const atualizarObs = async () => {
       try {
         const dados = await carregarObservacoes();
-        const ativas = dados.filter(o => o.status !== 'Inativo').map(o => o.nome);
+        const lista = Array.isArray(dados) ? dados : [];
+        const ativas = lista.filter(o => o && o.status !== 'Inativo').map(o => o.nome);
         if (ativas.length > 0) {
           setListaObservacoes(ativas);
           if (!ativas.includes(observacao)) {
@@ -73,7 +72,7 @@ export default function NovaSaidaModal({
 
     const handleObsChanged = (e) => {
       if (e.detail && Array.isArray(e.detail)) {
-        const ativas = e.detail.filter(o => o.status !== 'Inativo').map(o => o.nome);
+        const ativas = e.detail.filter(o => o && o.status !== 'Inativo').map(o => o.nome);
         if (ativas.length > 0) {
           setListaObservacoes(ativas);
           if (!ativas.includes(observacao)) {
@@ -92,8 +91,46 @@ export default function NovaSaidaModal({
   // Justificativa para reincidência (> 3 retiradas)
   const [justificativaReincidencia, setJustificativaReincidencia] = useState('');
 
-  // Vigilante
-  const [vigilante, setVigilante] = useState(VIGILANTES_PADRAO[0]);
+  // Vigilantes de Posto (Campo) Dinâmicos
+  const [listaVigilantes, setListaVigilantes] = useState(() => {
+    const ativas = obterNomesVigilantesAtivos();
+    return Array.isArray(ativas) && ativas.length > 0 ? ativas : ['Vigilante Portaria 1', 'Vigilante Portaria 2', 'Vigilante Ronda'];
+  });
+  const [vigilante, setVigilante] = useState(() => {
+    const ativas = obterNomesVigilantesAtivos();
+    return (Array.isArray(ativas) && ativas[0]) || 'Vigilante Portaria 1';
+  });
+
+  useEffect(() => {
+    const atualizarVigs = async () => {
+      try {
+        const dados = await carregarVigilantes();
+        const lista = Array.isArray(dados) ? dados : [];
+        const ativas = lista.filter(v => v && v.status !== 'Inativo').map(v => v.nome);
+        if (ativas.length > 0) {
+          setListaVigilantes(ativas);
+          setVigilante(prev => (ativas.includes(prev) ? prev : ativas[0]));
+        }
+      } catch (e) {}
+    };
+
+    atualizarVigs();
+
+    const handleVigsChanged = (e) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        const ativas = e.detail.filter(v => v && v.status !== 'Inativo').map(v => v.nome);
+        if (ativas.length > 0) {
+          setListaVigilantes(ativas);
+          setVigilante(prev => (ativas.includes(prev) ? prev : ativas[0]));
+        }
+      } else {
+        atualizarVigs();
+      }
+    };
+
+    window.addEventListener('cco_vigilantes_changed', handleVigsChanged);
+    return () => window.removeEventListener('cco_vigilantes_changed', handleVigsChanged);
+  }, []);
 
   // Timestamps automáticos (Data e Hora em tempo real)
   const [dataRetirada, setDataRetirada] = useState(new Date().toISOString().split('T')[0]);
@@ -192,6 +229,13 @@ export default function NovaSaidaModal({
       vigilante,
       justificativa: isReincidente ? justificativaReincidencia : null
     };
+
+    salvarPessoaUnificada({
+      nome: buscaNome.trim(),
+      empresa: empresa.trim(),
+      matricula: matricula.trim(),
+      cargo: cargo.trim()
+    });
 
     onSalvar(dadosRegistro);
     onClose();
@@ -312,69 +356,33 @@ export default function NovaSaidaModal({
               )}
             </div>
 
-            {/* Input Nome com Autocomplete Dropdown */}
-            <div className="relative">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Digite o nome completo do colaborador..."
-                  value={buscaNome}
-                  onChange={(e) => handleNomeChange(e.target.value)}
-                  className={`w-full bg-slate-950 border rounded-lg pl-9 pr-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none font-medium ${
-                    isReincidente 
-                      ? 'border-red-500/80 focus:ring-1 focus:ring-red-500' 
-                      : 'border-slate-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500'
-                  }`}
-                />
-                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-              </div>
-
-              {/* Suggestions dropdown */}
-              {sugestoes.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 overflow-hidden divide-y divide-slate-800">
-                  <div className="px-3 py-1.5 bg-slate-950 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Colaboradores Encontrados (Clique para autocompletar)
-                  </div>
-                  {sugestoes.map((item, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => selecionarColaborador(item)}
-                      className="w-full text-left p-3 hover:bg-slate-800/80 transition-colors flex items-center justify-between group"
-                    >
-                      <div>
-                        <p className="text-xs font-bold text-slate-200 group-hover:text-amber-300">
-                          {item.nome}
-                        </p>
-                        <p className="text-[11px] text-slate-400">
-                          {item.empresa} • Matrícula: {item.matricula}
-                        </p>
-                      </div>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                        item.retiradasMes >= 3 
-                          ? 'bg-red-500/20 text-red-300 border-red-500/40 font-bold' 
-                          : 'bg-slate-800 text-slate-400 border-slate-700'
-                      }`}>
-                        {item.retiradasMes} retiradas no mês
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Input Nome com Autocomplete Dropdown Conectado à Base Unificada */}
+            <AutocompleteInput
+              tipo="pessoa"
+              placeholder="Digite o nome completo do colaborador (busca global)..."
+              value={buscaNome}
+              onChange={(val) => setBuscaNome(val)}
+              onSelect={(pessoa) => {
+                setBuscaNome(pessoa.nome);
+                if (pessoa.empresa && pessoa.empresa !== 'ESTOQUE CCO' && pessoa.empresa !== 'VISITA PARTICULAR') {
+                  setEmpresa(pessoa.empresa);
+                }
+                if (pessoa.matricula) setMatricula(pessoa.matricula);
+                if (pessoa.cargo) setCargo(pessoa.cargo);
+              }}
+              inputClassName={isReincidente ? '!border-red-500/80 !focus:ring-red-500' : ''}
+            />
 
             {/* Campos complementares */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[11px] font-medium text-slate-400 mb-1">
-                  Empresa do Colaborador
-                </label>
-                <input
-                  type="text"
+                <AutocompleteInput
+                  tipo="empresa"
+                  label="Empresa do Colaborador"
                   placeholder="Ex: Prestador, Fornecedor..."
                   value={empresa}
-                  onChange={(e) => setEmpresa(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+                  onChange={(val) => setEmpresa(val)}
+                  onSelect={(emp) => setEmpresa(typeof emp === 'string' ? emp : emp.empresa || emp)}
                 />
               </div>
               <div>
@@ -515,7 +523,7 @@ export default function NovaSaidaModal({
                 onChange={(e) => setVigilante(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
               >
-                {VIGILANTES_PADRAO.map((v, i) => (
+                {listaVigilantes.map((v, i) => (
                   <option key={i} value={v}>{v}</option>
                 ))}
               </select>

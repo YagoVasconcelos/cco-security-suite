@@ -13,26 +13,7 @@
     "caminhoRede": "MAPA DE CALOR/2026/09.SETEMBRO",
     "atualizadoEm": "2026-01-01T00:00:00.000Z"
   },
-  "operadores": [
-    {
-      "id": "op-1",
-      "nome": "Op. Operador 01",
-      "matricula": "CCO-1001",
-      "cargo": "Operador CCO",
-      "turno": "12x36 Diurno",
-      "status": "Ativo",
-      "dataCadastro": "2026-01-01"
-    },
-    {
-      "id": "op-2",
-      "nome": "Op. Operador 02",
-      "matricula": "CCO-1002",
-      "cargo": "Operador CCO Líder",
-      "turno": "12x36 Diurno",
-      "status": "Ativo",
-      "dataCadastro": "2026-01-01"
-    }
-  ],
+  "operadores": [],
   "turnos": [
     {
       "id": "turno-1",

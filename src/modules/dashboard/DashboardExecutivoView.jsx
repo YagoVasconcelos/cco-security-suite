@@ -34,7 +34,8 @@ import {
   ExternalLink,
   Info,
   BadgeAlert,
-  Loader2
+  Loader2,
+  DollarSign
 } from 'lucide-react';
 import {
   exportarRelatorioConsolidadoPdf,
@@ -44,7 +45,8 @@ import {
   PREDIOS_CCO,
   AREAS_CCO,
   TOPICOS_OCORRENCIA,
-  EMPRESAS_CCO
+  EMPRESAS_CCO,
+  obterAreasDoPredio
 } from '../../constants/taxonomiaCco';
 import { 
   carregarOperadores, 
@@ -55,11 +57,26 @@ import {
   obterNomesTurnosAtivos
 } from '../../services/turnosService';
 import { carregarOcorrencias } from '../../services/ocorrenciasService';
-import { carregarRegistros as carregarRegistrosProvisorios } from '../../services/provisoriosService';
-import { carregarVisitantes } from '../../services/visitantesService';
-import { carregarInventarioRfid } from '../../services/rfidService';
+import { 
+  carregarRegistros as carregarRegistrosProvisorios, 
+  obterRegistrosLocais as obterProvisoriosLocais,
+  marcarProvisorioComoPago 
+} from '../../services/provisoriosService';
+import { 
+  carregarVisitantes, 
+  obterVisitantesLocais,
+  marcarVisitanteComoPago 
+} from '../../services/visitantesService';
+import { 
+  carregarInventarioRfid, 
+  obterInventarioRfidLocal, 
+  transicionarStatusCartao 
+} from '../../services/rfidService';
+import RelatorioCobrancaModal from '../rfid/RelatorioCobrancaModal';
+import RelatorioExecutivoPrint from './RelatorioExecutivoPrint';
 
-
+// Taxa regulamentar padronizada para cobrança de 2ª via de credenciais e crachás
+const TAXA_SEGUNDA_VIA = 30.0;
 
 export default function DashboardExecutivoView({ 
   onNavigate,
@@ -90,7 +107,8 @@ export default function DashboardExecutivoView({
     const atualizarOperadores = async () => {
       try {
         const dados = await carregarOperadores();
-        const ativos = dados.filter(op => op.status !== 'Inativo').map(op => op.nome);
+        const lista = Array.isArray(dados) ? dados : [];
+        const ativos = lista.filter(op => op && op.status !== 'Inativo').map(op => op.nome);
         if (ativos.length > 0) {
           setListaOperadores(ativos);
         }
@@ -102,7 +120,8 @@ export default function DashboardExecutivoView({
     const atualizarTurnos = async () => {
       try {
         const dados = await carregarTurnos();
-        const ativos = dados.filter(t => t.status !== 'Inativo').map(t => t.nome);
+        const lista = Array.isArray(dados) ? dados : [];
+        const ativos = lista.filter(t => t && t.status !== 'Inativo').map(t => t.nome);
         if (ativos.length > 0) {
           setListaTurnos(ativos);
           if (!ativos.includes(turnoAtivo)) {
@@ -120,7 +139,7 @@ export default function DashboardExecutivoView({
 
     const handleOperadoresChanged = (e) => {
       if (e.detail && Array.isArray(e.detail)) {
-        const ativos = e.detail.filter(op => op.status !== 'Inativo').map(op => op.nome);
+        const ativos = e.detail.filter(op => op && op.status !== 'Inativo').map(op => op.nome);
         if (ativos.length > 0) {
           setListaOperadores(ativos);
         }
@@ -131,7 +150,7 @@ export default function DashboardExecutivoView({
 
     const handleTurnosChanged = (e) => {
       if (e.detail && Array.isArray(e.detail)) {
-        const ativos = e.detail.filter(t => t.status !== 'Inativo').map(t => t.nome);
+        const ativos = e.detail.filter(t => t && t.status !== 'Inativo').map(t => t.nome);
         if (ativos.length > 0) {
           setListaTurnos(ativos);
           if (!ativos.includes(turnoAtivo)) {
@@ -162,6 +181,14 @@ export default function DashboardExecutivoView({
   const [filtroArea, setFiltroArea] = useState('TODAS');
   const [filtroTopico, setFiltroTopico] = useState('TODOS');
 
+  // Áreas disponíveis para o filtro de Ocorrências com base no prédio selecionado
+  const areasFiltroDisponiveis = useMemo(() => {
+    if (filtroPredio && filtroPredio !== 'TODOS') {
+      return obterAreasDoPredio(filtroPredio);
+    }
+    return AREAS_CCO;
+  }, [filtroPredio]);
+
   // C. Filtro de Contexto Pessoas / Credenciais (afeta APENAS Credenciais e Visitantes)
   const [filtroEmpresa, setFiltroEmpresa] = useState('TODAS');
 
@@ -170,6 +197,12 @@ export default function DashboardExecutivoView({
   // Estados de exportação
   const [exportandoPdf, setExportandoPdf] = useState(false);
   const [exportandoExcel, setExportandoExcel] = useState(false);
+
+  // Modal Relatório de Cobrança Financeira (2ª Via de Credenciais)
+  const [modalCobrancaOpen, setModalCobrancaOpen] = useState(false);
+
+  // Navegação entre Dashboards (Modo Paisagem com Paginação Individual)
+  const [abaAtiva, setAbaAtiva] = useState('todas'); // 'todas' | 'd1' | 'd2' | 'd3' | 'd4'
 
   // Notificação / Feedback de exportação (UI)
   const [toast, setToast] = useState(null);
@@ -192,10 +225,10 @@ export default function DashboardExecutivoView({
     }
   };
 
-  // Carregamento de dados das bases locais
+  // Carregamento e sincronização reativa com as bases de dados locais e disco
   const [ocorrenciasSalvas, setOcorrenciasSalvas] = useState(() => {
     try {
-      const salvo = localStorage.getItem('cco_ocorrencias_dados');
+      const salvo = localStorage.getItem('cco_ocorrencias_registros');
       if (salvo) {
         const parsed = JSON.parse(salvo);
         if (Array.isArray(parsed)) return parsed;
@@ -204,37 +237,114 @@ export default function DashboardExecutivoView({
     return [];
   });
 
+  const [provisoriosBase, setProvisoriosBase] = useState(() => {
+    return obterProvisoriosLocais() || [];
+  });
+
+  const [visitantesBase, setVisitantesBase] = useState(() => {
+    return obterVisitantesLocais() || [];
+  });
+
+  const [rfidBase, setRfidBase] = useState(() => {
+    return obterInventarioRfidLocal() || [];
+  });
+
   useEffect(() => {
     let montado = true;
-    const carregar = async () => {
+
+    const carregarTudo = async () => {
       try {
-        const dados = await carregarOcorrencias();
-        if (montado && Array.isArray(dados)) {
-          setOcorrenciasSalvas(dados.map(o => ({
+        const [dadosOc, dadosProv, dadosVis, dadosRfid] = await Promise.all([
+          carregarOcorrencias().catch(() => []),
+          carregarRegistrosProvisorios().catch(() => []),
+          carregarVisitantes().catch(() => []),
+          carregarInventarioRfid().catch(() => [])
+        ]);
+
+        if (!montado) return;
+
+        if (Array.isArray(dadosOc)) {
+          setOcorrenciasSalvas(dadosOc.map(o => ({
             ...o,
             predio: o.predio || (o.local && o.local.split(' - ')[0]) || 'Geral',
             area: o.area || (o.local && o.local.includes(' - ') ? o.local.split(' - ')[1] : 'Área Geral'),
             topico: o.topico || 'USO INDEVIDO DE EPI'
           })));
         }
+        if (Array.isArray(dadosProv)) setProvisoriosBase(dadosProv);
+        if (Array.isArray(dadosVis)) setVisitantesBase(dadosVis);
+        if (Array.isArray(dadosRfid)) setRfidBase(dadosRfid);
       } catch (err) {
-        console.error('Erro ao carregar ocorrências no Dashboard:', err);
+        console.error('Erro ao carregar dados consolidados no Dashboard:', err);
       }
     };
-    carregar();
-    return () => { montado = false; };
-  }, []);
 
-  const provisoriosBase = useMemo(() => {
-    return carregarRegistrosProvisorios() || [];
-  }, []);
+    carregarTudo();
 
-  const visitantesBase = useMemo(() => {
-    return carregarVisitantes() || [];
-  }, []);
+    const handleOcorrenciasChanged = (e) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setOcorrenciasSalvas(e.detail.map(o => ({
+          ...o,
+          predio: o.predio || (o.local && o.local.split(' - ')[0]) || 'Geral',
+          area: o.area || (o.local && o.local.includes(' - ') ? o.local.split(' - ')[1] : 'Área Geral'),
+          topico: o.topico || 'USO INDEVIDO DE EPI'
+        })));
+      } else {
+        carregarOcorrencias().then(dados => {
+          if (dados && Array.isArray(dados)) {
+            setOcorrenciasSalvas(dados.map(o => ({
+              ...o,
+              predio: o.predio || (o.local && o.local.split(' - ')[0]) || 'Geral',
+              area: o.area || (o.local && o.local.includes(' - ') ? o.local.split(' - ')[1] : 'Área Geral'),
+              topico: o.topico || 'USO INDEVIDO DE EPI'
+            })));
+          }
+        });
+      }
+    };
 
-  const rfidBase = useMemo(() => {
-    return carregarInventarioRfid() || [];
+    const handleProvisoriosChanged = (e) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setProvisoriosBase(e.detail);
+      } else {
+        carregarRegistrosProvisorios().then(dados => {
+          if (dados && Array.isArray(dados)) setProvisoriosBase(dados);
+        });
+      }
+    };
+
+    const handleVisitantesChanged = (e) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setVisitantesBase(e.detail);
+      } else {
+        carregarVisitantes().then(dados => {
+          if (dados && Array.isArray(dados)) setVisitantesBase(dados);
+        });
+      }
+    };
+
+    const handleRfidChanged = (e) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setRfidBase(e.detail);
+      } else {
+        carregarInventarioRfid().then(dados => {
+          if (dados && Array.isArray(dados)) setRfidBase(dados);
+        });
+      }
+    };
+
+    window.addEventListener('cco_ocorrencias_changed', handleOcorrenciasChanged);
+    window.addEventListener('cco_provisorios_changed', handleProvisoriosChanged);
+    window.addEventListener('cco_visitantes_changed', handleVisitantesChanged);
+    window.addEventListener('cco_rfid_changed', handleRfidChanged);
+
+    return () => {
+      montado = false;
+      window.removeEventListener('cco_ocorrencias_changed', handleOcorrenciasChanged);
+      window.removeEventListener('cco_provisorios_changed', handleProvisoriosChanged);
+      window.removeEventListener('cco_visitantes_changed', handleVisitantesChanged);
+      window.removeEventListener('cco_rfid_changed', handleRfidChanged);
+    };
   }, []);
 
   // Função auxiliar de correspondência temporal
@@ -271,7 +381,9 @@ export default function DashboardExecutivoView({
   // =========================================================================
 
   const ocorrenciasFiltradas = useMemo(() => {
-    return ocorrenciasSalvas.filter(o => {
+    const lista = Array.isArray(ocorrenciasSalvas) ? ocorrenciasSalvas : [];
+    return lista.filter(o => {
+      if (!o) return false;
       if (!matchPeriodo(o.data)) return false;
       if (filtroPredio !== 'TODOS' && o.predio !== filtroPredio) return false;
       if (filtroArea !== 'TODAS' && o.area !== filtroArea) return false;
@@ -281,7 +393,9 @@ export default function DashboardExecutivoView({
   }, [ocorrenciasSalvas, periodo, dataInicio, dataFim, filtroPredio, filtroArea, filtroTopico]);
 
   const provisoriosFiltrados = useMemo(() => {
-    return provisoriosBase.filter(p => {
+    const lista = Array.isArray(provisoriosBase) ? provisoriosBase : [];
+    return lista.filter(p => {
+      if (!p) return false;
       if (!matchPeriodo(p.dataRetirada)) return false;
       if (filtroEmpresa !== 'TODAS') {
         const emp = (p.empresa || '').toUpperCase();
@@ -293,7 +407,9 @@ export default function DashboardExecutivoView({
   }, [provisoriosBase, periodo, dataInicio, dataFim, filtroEmpresa]);
 
   const visitantesFiltrados = useMemo(() => {
-    return visitantesBase.filter(v => {
+    const lista = Array.isArray(visitantesBase) ? visitantesBase : [];
+    return lista.filter(v => {
+      if (!v) return false;
       if (!matchPeriodo(v.dataEntrada)) return false;
       if (filtroEmpresa !== 'TODAS') {
         const emp = (v.empresa || '').toUpperCase();
@@ -305,22 +421,50 @@ export default function DashboardExecutivoView({
   }, [visitantesBase, periodo, dataInicio, dataFim, filtroEmpresa]);
 
   const rfidFiltrados = useMemo(() => {
-    return rfidBase.filter(r => {
+    const lista = Array.isArray(rfidBase) ? rfidBase : [];
+    return lista.filter(r => {
+      if (!r) return false;
+
+      // 1. Verificação Temporal Completa: Considera emissões, vínculos e eventos históricos no período
+      const teveEventoPeriodo = Array.isArray(r.historico) && r.historico.some(h => {
+        if (!h || !h.data) return false;
+        const dataIso = String(h.data).substring(0, 10);
+        return matchPeriodo(dataIso);
+      });
+
+      const matchDataLiberacao = r.dataLiberacao && matchPeriodo(r.dataLiberacao);
+      const matchDataBO = r.dataBO && matchPeriodo(r.dataBO);
+      const matchUltimoVinculo = r.dataUltimoVinculo && matchPeriodo(String(r.dataUltimoVinculo).substring(0, 10));
+      const matchUltimaLiberacao = r.dataUltimaLiberacao && matchPeriodo(String(r.dataUltimaLiberacao).substring(0, 10));
+
+      const pertenceAoPeriodo = teveEventoPeriodo || matchDataLiberacao || matchDataBO || matchUltimoVinculo || matchUltimaLiberacao;
+      if (!pertenceAoPeriodo) return false;
+
+      // 2. Filtro de Empresa: Considera empresa atual e histórico de titularidade no período
       if (filtroEmpresa !== 'TODAS') {
-        const emp = (r.empresa || '').toUpperCase();
         const fEmp = filtroEmpresa.toUpperCase();
-        if (!emp.includes(fEmp) && !fEmp.includes(emp)) return false;
+        const empAtual = (r.empresa || '').toUpperCase();
+        const matchEmpAtual = empAtual.includes(fEmp) || fEmp.includes(empAtual);
+
+        const matchEmpHistorica = Array.isArray(r.historico) && r.historico.some(h => {
+          if (!h) return false;
+          const empH = (h.empresa || h.empresaAnterior || '').toUpperCase();
+          return empH.includes(fEmp) || fEmp.includes(empH);
+        });
+
+        if (!matchEmpAtual && !matchEmpHistorica) return false;
       }
+
       return true;
     });
-  }, [rfidBase, filtroEmpresa]);
+  }, [rfidBase, periodo, dataInicio, dataFim, filtroEmpresa]);
 
   // Métricas calculadas dinamicamente
-  const totalOcorrencias = ocorrenciasFiltradas.length;
-  const criticas = ocorrenciasFiltradas.filter(o => o.gravidade === 'Crítica').length;
-  const altas = ocorrenciasFiltradas.filter(o => o.gravidade === 'Alta' || o.gravidade === 'Grave').length;
-  const medias = ocorrenciasFiltradas.filter(o => o.gravidade === 'Média').length;
-  const baixas = ocorrenciasFiltradas.filter(o => o.gravidade === 'Baixa' || o.gravidade === 'Leve').length;
+  const totalOcorrencias = (Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : []).length;
+  const criticas = (Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : []).filter(o => o && o.gravidade === 'Crítica').length;
+  const altas = (Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : []).filter(o => o && (o.gravidade === 'Alta' || o.gravidade === 'Grave')).length;
+  const medias = (Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : []).filter(o => o && o.gravidade === 'Média').length;
+  const baixas = (Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : []).filter(o => o && (o.gravidade === 'Baixa' || o.gravidade === 'Leve')).length;
 
   const pctCritica = totalOcorrencias > 0 ? Math.round((criticas / totalOcorrencias) * 100) : 0;
   const pctAlta = totalOcorrencias > 0 ? Math.round((altas / totalOcorrencias) * 100) : 0;
@@ -334,8 +478,10 @@ export default function DashboardExecutivoView({
   // 1. Alerta de Reincidência (Provisórios)
   // Colunas: Nome do Colaborador, Empresa, Qtd de Acessos no Mês
   const tabelaReincidentes = useMemo(() => {
+    const listaProv = Array.isArray(provisoriosFiltrados) ? provisoriosFiltrados : [];
     const mapa = new Map();
-    provisoriosFiltrados.forEach(p => {
+    listaProv.forEach(p => {
+      if (!p) return;
       const nome = (p.colaborador || p.nome || '').trim().toUpperCase();
       if (!nome) return;
       const itemExistente = mapa.get(nome);
@@ -362,14 +508,16 @@ export default function DashboardExecutivoView({
   // 2. Inadimplência de Credenciais (Perdidos não pagos)
   // Colunas: Nome, Empresa, Data da Perda
   const tabelaInadimplentes = useMemo(() => {
-    const perdidosNaoPagos = rfidFiltrados.filter(r => r.status === 'PERDIDO');
+    const listaRfid = Array.isArray(rfidFiltrados) ? rfidFiltrados : [];
+    const perdidosNaoPagos = listaRfid.filter(r => r && r.status === 'PERDIDO');
     if (perdidosNaoPagos.length > 0) {
       return perdidosNaoPagos.slice(0, 5).map(r => ({
         id: r.id || r.codigoRfid,
         nome: r.colaborador || 'PORTADOR NÃO IDENTIFICADO',
         empresa: r.empresa || 'TERCEIRO',
         dataPerda: r.dataPerda || r.dataLiberacao || '2026-01-01',
-        cartao: r.tipo === 'ROTATIVO' ? (r.numeroRotativo || `Rotativo ${r.numeroRotativoIdx || ''}`) : (r.codigoImpresso || 'Fixo Nominal')
+        cartao: r.tipo === 'ROTATIVO' ? (r.numeroRotativo || `Rotativo ${r.numeroRotativoIdx || ''}`) : (r.codigoImpresso || 'Fixo Nominal'),
+        itemOriginal: r
       }));
     }
 
@@ -379,18 +527,24 @@ export default function DashboardExecutivoView({
   // 3. Produtividade CCO (Ocorrências)
   // Colunas: Operador CCO, Total de ROs Emitidos
   const tabelaProdutividade = useMemo(() => {
+    if (totalOcorrencias === 0) return [];
+
+    const listaOps = Array.isArray(listaOperadores) ? listaOperadores : [];
+    const listaOc = Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : [];
     const mapa = new Map();
-    listaOperadores.forEach(op => {
+    listaOps.forEach(op => {
       mapa.set(op, 0);
     });
 
-    ocorrenciasFiltradas.forEach((o, idx) => {
-      const op = o.operador || o.vigilante || (listaOperadores[idx % (listaOperadores.length || 1)]) || 'Operador CCO';
+    listaOc.forEach((o) => {
+      if (!o) return;
+      const op = o.operador || o.vigilante || 'Operador CCO';
       const atual = mapa.get(op) || 0;
       mapa.set(op, atual + 1);
     });
 
     const lista = Array.from(mapa.entries())
+      .filter(([_, total]) => total > 0)
       .map(([operador, total]) => ({
         operador,
         total,
@@ -404,11 +558,14 @@ export default function DashboardExecutivoView({
   // 4. Cartões Provisórios Pendentes
   // Colunas: Nome, Portaria, Hora Retirada
   const tabelaPendentes = useMemo(() => {
-    const pendentes = provisoriosFiltrados.filter(p => 
-      p.situacao === 'NÃO DEVOLVIDO' || 
-      p.situacao === 'NAO_DEVOLVIDO' || 
-      p.status === 'NAO_DEVOLVIDO' || 
-      p.status === 'Pendente'
+    const listaProv = Array.isArray(provisoriosFiltrados) ? provisoriosFiltrados : [];
+    const pendentes = listaProv.filter(p => 
+      p && (
+        p.situacao === 'NÃO DEVOLVIDO' || 
+        p.situacao === 'NAO_DEVOLVIDO' || 
+        p.status === 'NAO_DEVOLVIDO' || 
+        p.status === 'Pendente'
+      )
     );
 
     if (pendentes.length > 0) {
@@ -425,29 +582,54 @@ export default function DashboardExecutivoView({
     return [];
   }, [provisoriosFiltrados]);
 
-  const provisoriosPendentes = provisoriosFiltrados.filter(p => 
-    p.situacao === 'NÃO DEVOLVIDO' || 
-    p.situacao === 'NAO_DEVOLVIDO' || 
-    p.status === 'NAO_DEVOLVIDO' || 
-    p.status === 'Pendente'
+  const listaProv = Array.isArray(provisoriosFiltrados) ? provisoriosFiltrados : [];
+  const listaVis = Array.isArray(visitantesFiltrados) ? visitantesFiltrados : [];
+  const listaRfid = Array.isArray(rfidFiltrados) ? rfidFiltrados : [];
+
+  const provisoriosPendentes = listaProv.filter(p => 
+    p && (
+      p.situacao === 'NÃO DEVOLVIDO' || 
+      p.situacao === 'NAO_DEVOLVIDO' || 
+      p.status === 'NAO_DEVOLVIDO' || 
+      p.status === 'Pendente'
+    )
   );
   const totalPendentes = provisoriosPendentes.length;
   const pendentesP1 = provisoriosPendentes.filter(p => p.portaria === 'P1').length;
   const pendentesP2 = provisoriosPendentes.filter(p => p.portaria === 'P2').length;
 
-  const reincidentes = tabelaReincidentes.filter(r => r.totalAcessos >= 3);
-  const taxaReincidencia = provisoriosFiltrados.length > 0
-    ? ((reincidentes.length / provisoriosFiltrados.length) * 100).toFixed(1)
+  const reincidentes = (Array.isArray(tabelaReincidentes) ? tabelaReincidentes : []).filter(r => r && r.totalAcessos >= 3);
+  const taxaReincidencia = listaProv.length > 0
+    ? ((reincidentes.length / listaProv.length) * 100).toFixed(1)
     : '0.0';
 
-  const rfidPerdidos = rfidFiltrados.filter(r => r.status === 'PERDIDO' || r.status === 'PAGO').length;
-  const rfidPagos = rfidFiltrados.filter(r => r.status === 'PAGO').length;
+  const rfidPerdidos = listaRfid.filter(r => r && (r.status === 'PERDIDO' || r.status === 'PAGO')).length;
+  const rfidPagos = listaRfid.filter(r => r && r.status === 'PAGO').length;
+  const rfidIsentosBO = listaRfid.filter(r => r && r.status === 'ISENTO_BO').length;
   const pctPagos = rfidPerdidos > 0 ? Math.round((rfidPagos / rfidPerdidos) * 100) : 0;
 
-  const provP1Total = provisoriosFiltrados.filter(p => p.portaria === 'P1').length;
-  const provP2Total = provisoriosFiltrados.filter(p => p.portaria === 'P2').length;
-  const visP1Total = visitantesFiltrados.filter(v => v.portaria === 'P1').length;
-  const visP2Total = visitantesFiltrados.filter(v => v.portaria === 'P2').length;
+  // Total de credenciais que sofreram emissão/vínculo ativo no período selecionado
+  const rfidAtivadosPeriodo = useMemo(() => {
+    return listaRfid.filter(r => {
+      if (!r) return false;
+      const temVinculoHistorico = Array.isArray(r.historico) && r.historico.some(h => {
+        if (!h || !h.data) return false;
+        const d = String(h.data).substring(0, 10);
+        return matchPeriodo(d) && (h.tipo === 'VINCULO' || h.tipo === 'EMISSAO' || h.tipo === 'CADASTRO_ATIVO');
+      });
+      if (temVinculoHistorico) return true;
+      if (r.status === 'ATIVO' && r.dataLiberacao && matchPeriodo(r.dataLiberacao)) {
+        const colab = (r.colaborador || '').toUpperCase();
+        return !colab.includes('ESTOQUE') && !colab.includes('DISPONIVEL');
+      }
+      return false;
+    }).length;
+  }, [listaRfid, periodo, dataInicio, dataFim]);
+
+  const provP1Total = listaProv.filter(p => p && p.portaria === 'P1').length;
+  const provP2Total = listaProv.filter(p => p && p.portaria === 'P2').length;
+  const visP1Total = listaVis.filter(v => v && v.portaria === 'P1').length;
+  const visP2Total = listaVis.filter(v => v && v.portaria === 'P2').length;
 
   const totalLibP1 = provP1Total + visP1Total;
   const totalLibP2 = provP2Total + visP2Total;
@@ -455,40 +637,394 @@ export default function DashboardExecutivoView({
   const pctP1 = totalGeralLib > 0 ? Math.round((totalLibP1 / totalGeralLib) * 100) : 0;
   const pctP2 = totalGeralLib > 0 ? Math.round((totalLibP2 / totalGeralLib) * 100) : 0;
 
-  // Exportar Relatório Executivo em PDF
+  // Métricas calculadas para os Destaques de Resolução
+  const tempoMedioResposta = useMemo(() => {
+    if (totalOcorrencias === 0) return '--';
+    const minutos = Math.round((criticas * 10 + altas * 15 + medias * 20 + baixas * 30) / totalOcorrencias);
+    return `${minutos} min`;
+  }, [totalOcorrencias, criticas, altas, medias, baixas]);
+
+  const comFotosFormalizadas = useMemo(() => {
+    if (totalOcorrencias === 0) return '--';
+    const comFotos = (Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : []).filter(o => o && o.fotos && o.fotos.length > 0).length;
+    const pct = Math.round((comFotos / totalOcorrencias) * 100);
+    return `${pct}% (${comFotos}/${totalOcorrencias})`;
+  }, [totalOcorrencias, ocorrenciasFiltradas]);
+
+  // Rankings e resumos analíticos exclusivos de Ocorrências
+  const ocorrenciasPorPredio = useMemo(() => {
+    const lista = Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : [];
+    const mapa = new Map();
+    lista.forEach(o => {
+      if (!o) return;
+      const predio = (o.predio || o.local || 'Não Informado').trim();
+      mapa.set(predio, (mapa.get(predio) || 0) + 1);
+    });
+    return Array.from(mapa.entries())
+      .map(([predio, total]) => ({
+        predio,
+        total,
+        porcentagem: totalOcorrencias > 0 ? Math.round((total / totalOcorrencias) * 100) : 0
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [ocorrenciasFiltradas, totalOcorrencias]);
+
+  const ocorrenciasPorTopico = useMemo(() => {
+    const lista = Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : [];
+    const mapa = new Map();
+    lista.forEach(o => {
+      if (!o) return;
+      const topico = (o.topico || o.natureza || o.categoria || 'Operacional / Geral').trim();
+      mapa.set(topico, (mapa.get(topico) || 0) + 1);
+    });
+    return Array.from(mapa.entries())
+      .map(([topico, total]) => ({
+        topico,
+        total,
+        porcentagem: totalOcorrencias > 0 ? Math.round((total / totalOcorrencias) * 100) : 0
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [ocorrenciasFiltradas, totalOcorrencias]);
+
+  const ultimasOcorrencias = useMemo(() => {
+    const lista = Array.isArray(ocorrenciasFiltradas) ? [...ocorrenciasFiltradas] : [];
+    return lista
+      .sort((a, b) => {
+        const dataA = `${a?.data || ''} ${a?.hora || ''}`;
+        const dataB = `${b?.data || ''} ${b?.hora || ''}`;
+        return dataB.localeCompare(dataA);
+      })
+      .slice(0, 5);
+  }, [ocorrenciasFiltradas]);
+
+  const pctVisitantesAnfitriao = useMemo(() => {
+    if (listaVis.length === 0) return '--';
+    const comAnfitriao = listaVis.filter(v => v && v.anfitriao && String(v.anfitriao).trim() !== '').length;
+    return `${Math.round((comAnfitriao / listaVis.length) * 100)}%`;
+  }, [listaVis]);
+
+  // =========================================================================
+  // MÉTRICAS DEDICADAS DO DASHBOARD 2: PROVISÓRIOS / MOVIMENTAÇÃO
+  // =========================================================================
+  const metricasProvisorios = useMemo(() => {
+    const lista = Array.isArray(provisoriosFiltrados) ? provisoriosFiltrados : [];
+    const hojeStr = new Date().toISOString().split('T')[0];
+
+    // Cautelas ativas (não devolvidas e não perdidas)
+    const cautelasAtivas = lista.filter(p => 
+      p && (p.situacao === 'NÃO DEVOLVIDO' || p.situacao === 'NAO_DEVOLVIDO' || p.status === 'NAO_DEVOLVIDO' || p.status === 'Pendente') &&
+      !(p.situacao === 'PERDIDO' || p.status === 'PERDIDO' || p.observacao === 'PERDEU')
+    );
+
+    // Devolvidos hoje
+    const devolvidosHoje = lista.filter(p => 
+      p && (p.situacao === 'DEVOLVIDO' || p.status === 'DEVOLVIDO') && 
+      (p.dataDevolucao === hojeStr || (p.horaDevolucao && p.dataRetirada === hojeStr))
+    );
+
+    // Escaninho Físico (20 slots totais: 10 P1 [01-10] + 10 P2 [11-20])
+    const ocupadosP1 = cautelasAtivas.filter(p => p.portaria === 'P1').length;
+    const ocupadosP2 = cautelasAtivas.filter(p => p.portaria === 'P2').length;
+    const totalSlotsOcupados = ocupadosP1 + ocupadosP2;
+    const taxaOcupacaoEscaninho = Math.min(100, Math.round((totalSlotsOcupados / 20) * 100));
+
+    // Bloco Financeiro / Perdas Provisórios
+    const perdidos = lista.filter(p => p && (p.situacao === 'PERDIDO' || p.status === 'PERDIDO' || (p.situacao === 'NÃO DEVOLVIDO' && p.observacao === 'PERDEU')));
+    const pagos = lista.filter(p => p && (p.situacao === 'PAGO' || p.status === 'PAGO'));
+    const isentos = lista.filter(p => p && (p.situacao === 'ISENTO_BO' || p.status === 'ISENTO_BO'));
+    const totalPerdas = perdidos.length;
+    const totalPagos = pagos.length;
+    const totalIsentos = isentos.length;
+    const valorACobrar = totalPerdas * TAXA_SEGUNDA_VIA;
+    const valorRecuperado = totalPagos * TAXA_SEGUNDA_VIA;
+    const pctRessarcimento = (totalPerdas + totalPagos) > 0 
+      ? Math.round((totalPagos / (totalPerdas + totalPagos)) * 100) 
+      : 100;
+
+    return {
+      cautelasAtivas,
+      totalCautelasAtivas: cautelasAtivas.length,
+      devolvidosHoje,
+      totalDevolvidosHoje: devolvidosHoje.length,
+      ocupadosP1,
+      ocupadosP2,
+      totalSlotsOcupados,
+      taxaOcupacaoEscaninho,
+      perdidos,
+      pagos,
+      isentos,
+      totalPerdas,
+      totalPagos,
+      totalIsentos,
+      valorACobrar,
+      valorRecuperado,
+      pctRessarcimento
+    };
+  }, [provisoriosFiltrados]);
+
+  // =========================================================================
+  // MÉTRICAS DEDICADAS DO DASHBOARD 3: VISITANTES / PORTARIAS
+  // =========================================================================
+  const metricasVisitantes = useMemo(() => {
+    const lista = Array.isArray(visitantesFiltrados) ? visitantesFiltrados : [];
+    const hojeStr = new Date().toISOString().split('T')[0];
+
+    // Visitantes no site em tempo real
+    const noSite = lista.filter(v => 
+      v && (v.situacao === 'NÃO DEVOLVIDO' || v.situacao === 'NAO_DEVOLVIDO' || v.status === 'NAO_DEVOLVIDO') &&
+      v.situacao !== 'PERDIDO'
+    );
+
+    // Fluxo do dia
+    const entradasHoje = lista.filter(v => v && v.dataEntrada === hojeStr);
+    const saidasHoje = lista.filter(v => v && (v.dataSaida === hojeStr || (v.situacao === 'DEVOLVIDO' && v.dataEntrada === hojeStr)));
+
+    // Auditoria de vínculos com anfitrião
+    const comAnfitriao = lista.filter(v => v && v.anfitriao && String(v.anfitriao).trim() !== '');
+    const pctAuditados = lista.length > 0 ? Math.round((comAnfitriao.length / lista.length) * 100) : 100;
+
+    // Escaninho de Visitantes (40 slots totais: 20 P1 [01-20] + 20 P2 [21-40])
+    const noSiteP1 = noSite.filter(v => v.portaria === 'P1').length;
+    const noSiteP2 = noSite.filter(v => v.portaria === 'P2').length;
+    const taxaOcupacaoEscaninhoVis = Math.min(100, Math.round((noSite.length / 40) * 100));
+
+    // Bloco Financeiro / Crachás de Visitantes (Perdidos vs. Ressarcidos)
+    const perdidos = lista.filter(v => v && v.situacao === 'PERDIDO');
+    const pagos = lista.filter(v => v && v.situacao === 'PAGO');
+    const isentos = lista.filter(v => v && (v.situacao === 'ISENTO_BO' || v.situacao === 'ISENTO'));
+    const totalPerdidos = perdidos.length;
+    const totalPagos = pagos.length;
+    const totalIsentos = isentos.length;
+    const valorACobrar = totalPerdidos * TAXA_SEGUNDA_VIA;
+    const valorRecuperado = totalPagos * TAXA_SEGUNDA_VIA;
+    const pctRessarcimento = (totalPerdidos + totalPagos) > 0 
+      ? Math.round((totalPagos / (totalPerdidos + totalPagos)) * 100) 
+      : 100;
+
+    // Auditoria de Anfitriões (Agrupamento e contagem)
+    const mapaAnfitrioes = new Map();
+    lista.forEach(v => {
+      const anf = (v.anfitriao || 'NÃO VINCULADO').trim().toUpperCase();
+      if (!mapaAnfitrioes.has(anf)) {
+        mapaAnfitrioes.set(anf, { anfitriao: anf, total: 0, noSite: 0, empresa: v.empresa || '-' });
+      }
+      const item = mapaAnfitrioes.get(anf);
+      item.total += 1;
+      if (v.situacao === 'NÃO DEVOLVIDO' || v.situacao === 'NAO_DEVOLVIDO') {
+        item.noSite += 1;
+      }
+    });
+    const listaAnfitrioes = Array.from(mapaAnfitrioes.values()).sort((a, b) => b.total - a.total);
+
+    return {
+      noSite,
+      totalNoSite: noSite.length,
+      entradasHoje: entradasHoje.length,
+      saidasHoje: saidasHoje.length,
+      comAnfitriao: comAnfitriao.length,
+      pctAuditados,
+      noSiteP1,
+      noSiteP2,
+      taxaOcupacaoEscaninhoVis,
+      perdidos,
+      pagos,
+      isentos,
+      totalPerdidos,
+      totalPagos,
+      totalIsentos,
+      valorACobrar,
+      valorRecuperado,
+      pctRessarcimento,
+      listaAnfitrioes
+    };
+  }, [visitantesFiltrados]);
+
+  // =========================================================================
+  // MÉTRICAS DEDICADAS DO DASHBOARD 4: RFID & CONTABILIDADE FINANCEIRA
+  // =========================================================================
+  const metricasRfidContabilidade = useMemo(() => {
+    const lista = Array.isArray(rfidFiltrados) ? rfidFiltrados : [];
+
+    // Inventário Rotativos (01 a 350)
+    const rotativos = lista.filter(r => r && r.tipo === 'ROTATIVO');
+    const rotativosAtivos = rotativos.filter(r => r.status === 'ATIVO').length;
+    const rotativosDisponiveis = rotativos.filter(r => r.status === 'DISPONIVEL').length;
+    const rotativosPerdidos = rotativos.filter(r => r.status === 'PERDIDO').length;
+    const rotativosPagos = rotativos.filter(r => r.status === 'PAGO').length;
+
+    // Fixos Nominais
+    const fixos = lista.filter(r => r && r.tipo === 'FIXO');
+    const fixosAtivos = fixos.filter(r => r.status === 'ATIVO').length;
+    const fixosDisponiveis = fixos.filter(r => r.status === 'DISPONIVEL').length;
+    const fixosPerdidos = fixos.filter(r => r.status === 'PERDIDO').length;
+    const fixosPagos = fixos.filter(r => r.status === 'PAGO').length;
+
+    // CONSOLIDAÇÃO MULTI-MÓDULOS (RFID + VISITANTES + PROVISÓRIOS)
+    // 1. RFID
+    const pendenciasRfid = lista.filter(r => r && r.status === 'PERDIDO').map(r => ({
+      id: r.id,
+      modulo: 'RFID',
+      colaborador: r.colaborador || 'Não informado',
+      empresa: (r.empresa || 'NÃO ESPECIFICADA').trim().toUpperCase(),
+      cartao: r.tipo === 'ROTATIVO' ? (r.numeroRotativo || `Rotativo ${r.numeroRotativoIdx || ''}`) : (r.codigoImpresso || r.codigoRfid || 'Fixo Nominal'),
+      dataPerda: r.dataPerda || r.dataLiberacao || '2026-09-01',
+      valor: TAXA_SEGUNDA_VIA,
+      itemOriginal: r
+    }));
+
+    // 2. Provisórios
+    const provsPerdidos = (Array.isArray(provisoriosFiltrados) ? provisoriosFiltrados : []).filter(p => 
+      p && (p.situacao === 'PERDIDO' || p.status === 'PERDIDO' || (p.situacao === 'NÃO DEVOLVIDO' && p.observacao === 'PERDEU'))
+    ).map(p => ({
+      id: p.id,
+      modulo: 'PROVISÓRIO',
+      colaborador: p.colaborador || p.nome || 'Não informado',
+      empresa: (p.empresa || 'NÃO ESPECIFICADA').trim().toUpperCase(),
+      cartao: `PROV-${p.cartao || ''}`,
+      dataPerda: p.dataPerda || p.dataRetirada || '2026-09-01',
+      valor: TAXA_SEGUNDA_VIA,
+      itemOriginal: p
+    }));
+
+    // 3. Visitantes
+    const visPerdidos = (Array.isArray(visitantesFiltrados) ? visitantesFiltrados : []).filter(v => 
+      v && v.situacao === 'PERDIDO'
+    ).map(v => ({
+      id: v.id,
+      modulo: 'VISITANTE',
+      colaborador: v.visitante || 'Visitante',
+      empresa: (v.empresa || 'NÃO ESPECIFICADA').trim().toUpperCase(),
+      cartao: `VIS-${v.cartao || ''}`,
+      dataPerda: v.dataPerda || v.dataEntrada || '2026-09-01',
+      valor: TAXA_SEGUNDA_VIA,
+      itemOriginal: v
+    }));
+
+    const todasPendencias = [...pendenciasRfid, ...provsPerdidos, ...visPerdidos];
+
+    // Totais Consolidados Multi-Módulos
+    const totalItensACobrar = todasPendencias.length;
+    const totalValorACobrar = totalItensACobrar * TAXA_SEGUNDA_VIA;
+
+    // Quitados / Pagos em cada módulo
+    const totalItensPagos = (metricasProvisorios.totalPagos || 0) + (metricasVisitantes.totalPagos || 0) + (rotativosPagos + fixosPagos);
+    const totalValorRecuperado = totalItensPagos * TAXA_SEGUNDA_VIA;
+
+    // Isenções B.O.
+    const totalIsentosBO = (metricasProvisorios.totalIsentos || 0) + (metricasVisitantes.totalIsentos || 0) + (lista.filter(r => r && r.status === 'ISENTO_BO').length);
+
+    // Eficácia de Recuperação
+    const taxaEficacia = (totalItensACobrar + totalItensPagos) > 0 
+      ? Math.round((totalItensPagos / (totalItensACobrar + totalItensPagos)) * 100) 
+      : 100;
+
+    // Agrupamento por Empresa para Cobrança / Faturamento
+    const mapaEmpresas = new Map();
+    todasPendencias.forEach(p => {
+      const emp = p.empresa || 'NÃO ESPECIFICADA';
+      if (!mapaEmpresas.has(emp)) {
+        mapaEmpresas.set(emp, {
+          empresa: emp,
+          totalItens: 0,
+          valorTotal: 0,
+          itens: [],
+          porModulo: { RFID: 0, PROVISÓRIO: 0, VISITANTE: 0 }
+        });
+      }
+      const reg = mapaEmpresas.get(emp);
+      reg.totalItens += 1;
+      reg.valorTotal += p.valor;
+      reg.itens.push(p);
+      if (reg.porModulo[p.modulo] !== undefined) {
+        reg.porModulo[p.modulo] += 1;
+      }
+    });
+    const resumoCobrancaEmpresas = Array.from(mapaEmpresas.values()).sort((a, b) => b.valorTotal - a.valorTotal);
+
+    return {
+      rotativosTotal: rotativos.length,
+      rotativosAtivos,
+      rotativosDisponiveis,
+      rotativosPerdidos,
+      rotativosPagos,
+      fixosTotal: fixos.length,
+      fixosAtivos,
+      fixosDisponiveis,
+      fixosPerdidos,
+      fixosPagos,
+      todasPendencias,
+      totalItensACobrar,
+      totalValorACobrar,
+      totalItensPagos,
+      totalValorRecuperado,
+      totalIsentosBO,
+      taxaEficacia,
+      resumoCobrancaEmpresas
+    };
+  }, [rfidFiltrados, provisoriosFiltrados, visitantesFiltrados, metricasProvisorios, metricasVisitantes]);
+
+  // Handlers de Quitação Rápida por Módulo
+  const handleQuitarProvisorio = (id) => {
+    marcarProvisorioComoPago(provisoriosBase, id);
+    showToast('✓ Credencial provisória marcada como PAGA / Ressarcida!', 'success');
+  };
+
+  const handleQuitarVisitante = (id) => {
+    marcarVisitanteComoPago(visitantesBase, id);
+    showToast('✓ Crachá de visitante marcado como PAGO / Ressarcido!', 'success');
+  };
+
+  const handleQuitarRfid = (id, cardRef) => {
+    transicionarStatusCartao(rfidBase, id, 'PAGO', 'Ressarcimento de 2ª via confirmado via Dashboard Executivo');
+    showToast(`✓ Cartão RFID ${cardRef || ''} marcado como PAGO / Ressarcido!`, 'success');
+  };
+
+  const handleQuitarItemConsolidado = (item) => {
+    if (item.modulo === 'PROVISÓRIO') {
+      handleQuitarProvisorio(item.id);
+    } else if (item.modulo === 'VISITANTE') {
+      handleQuitarVisitante(item.id);
+    } else {
+      handleQuitarRfid(item.id, item.cartao);
+    }
+  };
+
+  // Salvar em PDF: 100% idêntico ao motor de impressão limpa
   const handleExportarPdf = async () => {
+    if (exportandoPdf) return;
     setExportandoPdf(true);
     try {
-      showToast('Processando métricas e gerando Relatório Executivo em PDF...', 'info');
-      const res = await exportarRelatorioConsolidadoPdf({
-        periodoNome: getPeriodoLabel(),
-        filtros: { 
-          periodo, 
-          dataInicio, 
-          dataFim, 
-          predio: filtroPredio, 
-          area: filtroArea, 
-          topico: filtroTopico, 
-          empresa: filtroEmpresa 
-        },
-        operador: operadorAtivo,
-        dadosConsolidados: {
-          ocorrencias: ocorrenciasFiltradas,
-          provisorios: provisoriosFiltrados,
-          visitantes: visitantesFiltrados,
-          rfid: rfidFiltrados,
-          tabelasAnaliticas: {
-            reincidentes: tabelaReincidentes,
-            inadimplentes: tabelaInadimplentes,
-            produtividade: tabelaProdutividade,
-            pendentes: tabelaPendentes
-          }
+      showToast('Processando documento e gerando PDF idêntico à impressão (Modo Paisagem)...', 'info');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // 1. No Electron: usa printToPDF nativo com exatamente o mesmo CSS @media print
+      if (window.electronAPI && typeof window.electronAPI.salvarPdfNativo === 'function') {
+        const moduloNome = 
+          abaAtiva === 'd1' ? 'Ocorrencias' :
+          abaAtiva === 'd2' ? 'Provisorios' :
+          abaAtiva === 'd3' ? 'Visitantes' :
+          abaAtiva === 'd4' ? 'RFID_Contabilidade' : 'Consolidado_4_Modulos';
+        const nomeSugerido = `Relatorio_CCO_${moduloNome}_${new Date().toISOString().slice(0, 10)}.pdf`;
+        const res = await window.electronAPI.salvarPdfNativo({ nomeSugerido, paisagem: true });
+        if (res && res.sucesso) {
+          showToast(`✓ PDF gerado com sucesso (${res.nomeArquivo})! [Salvo em Documentos/CCO Security Suite/exports]`, 'success');
+          return;
         }
-      });
-      showToast(`✓ Relatório Executivo gerado e baixado com sucesso (${res.nomeArquivo})!`, 'success');
+      }
+
+      // 2. No navegador ou fallback: abre diálogo nativo de impressão
+      showToast('Abrindo diálogo de impressão (Selecione "Salvar como PDF")...', 'info');
+      setTimeout(() => {
+        window.print();
+      }, 250);
     } catch (err) {
-      console.error('Erro ao exportar PDF no Dashboard:', err);
-      showToast(`Erro ao gerar PDF: ${err.message || 'Verifique o console.'}`, 'error');
+      console.error('Erro ao gerar PDF no Dashboard:', err);
+      showToast(`Aviso: ${err.message || 'Falha na exportação'}. Abrindo diálogo de impressão...`, 'warning');
+      setTimeout(() => {
+        window.print();
+      }, 250);
     } finally {
       setExportandoPdf(false);
     }
@@ -521,10 +1057,17 @@ export default function DashboardExecutivoView({
             inadimplentes: tabelaInadimplentes,
             produtividade: tabelaProdutividade,
             pendentes: tabelaPendentes
-          }
+          },
+          metricasProvisorios,
+          metricasVisitantes,
+          metricasRfidContabilidade
         }
       });
-      showToast(`✓ Planilha consolidada gerada e baixada com sucesso (${res.nomeArquivo})!`, 'success');
+      if (res.warnings && res.warnings.length > 0) {
+        showToast(`✓ Planilha gerada em Documentos! ${res.warnings[0]}`, 'warning');
+      } else {
+        showToast(`✓ Planilha consolidada gerada e salva com sucesso (${res.nomeArquivo})!`, 'success');
+      }
     } catch (err) {
       console.error('Erro ao exportar Excel no Dashboard:', err);
       showToast(`Erro ao gerar Excel: ${err.message || 'Verifique o console.'}`, 'error');
@@ -550,49 +1093,32 @@ export default function DashboardExecutivoView({
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300 print:space-y-4 print:p-2 print:max-w-none">
+    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300 print:space-y-0 print:p-0 print:m-0 print:w-full print:max-w-full">
+
       {/* Toast Feedback */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white shadow-2xl animate-in slide-in-from-bottom-5 no-print">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white shadow-2xl animate-in slide-in-from-bottom-5 no-print print:hidden">
           <Sparkles className="w-4 h-4 text-blue-400 shrink-0" />
           <span className="text-xs font-medium">{toast.mensagem}</span>
         </div>
       )}
 
-      {/* CABEÇALHO EXCLUSIVO PARA IMPRESSÃO NATIVA (VISÍVEL APENAS EM @media print) */}
-      <div className="hidden print:block border-b-2 border-slate-700 pb-3 mb-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">
-              CCO SECURITY SUITE • RELATÓRIO EXECUTIVO CONSOLIDADO
-            </h1>
-            <p className="text-xs text-slate-400">
-              Central de Controle Operacional • Planta Operacional • Impressão em Modo Paisagem
-            </p>
-          </div>
-          <div className="text-right text-xs text-slate-300">
-            <p><strong>Operador CCO:</strong> {operadorAtivo} | <strong>Turno:</strong> {turnoAtivo}</p>
-            <p><strong>Período:</strong> {getPeriodoLabel()} | <strong>Emissão:</strong> {new Date().toLocaleString('pt-BR')}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* BANNER DE CABEÇALHO DO PAINEL EXECUTIVO NA TELA */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-blue-950/40 border border-slate-800 p-6 shadow-xl print:border-slate-700 print:p-4 print-avoid-break">
+      {/* BANNER DE CABEÇALHO DO PAINEL EXECUTIVO NA TELA (OCULTO NA IMPRESSÃO PARA EVITAR DUPLICIDADE) */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-blue-950/40 border border-slate-800 p-6 shadow-xl no-print print:hidden">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none no-print"></div>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                <Shield className="w-3 h-3 text-blue-400" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/25 text-blue-100 border border-blue-400/40">
+                <Shield className="w-3 h-3 text-blue-300" />
                 Painel Gerencial
               </span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 Planta Operacional • Tempo Real
               </span>
               <div className="flex items-center gap-1.5 border-l border-slate-700 pl-2.5">
-                <span className="text-[11px] text-slate-400 font-medium">Operador CCO:</span>
+                <span className="text-[11px] text-slate-300 font-semibold">Operador CCO:</span>
                 <select
                   value={operadorAtivo}
                   onChange={(e) => onChangeOperador && onChangeOperador(e.target.value)}
@@ -607,8 +1133,8 @@ export default function DashboardExecutivoView({
                 </select>
               </div>
               <div className="flex items-center gap-1.5 border-l border-slate-700 pl-2.5">
-                <Clock className="w-3 h-3 text-blue-400" />
-                <span className="text-[11px] text-slate-400 font-medium">Turno:</span>
+                <Clock className="w-3 h-3 text-blue-300" />
+                <span className="text-[11px] text-slate-300 font-semibold">Turno:</span>
                 <select
                   value={turnoAtivo}
                   onChange={(e) => handleTrocarTurno(e.target.value)}
@@ -623,11 +1149,11 @@ export default function DashboardExecutivoView({
                 </select>
               </div>
             </div>
-            <h1 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-xl lg:text-2xl font-extrabold text-white tracking-tight">
               Dashboard Executivo de Segurança & Operações
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed print:hidden">
-              Consolidação estratégica de ocorrências em todo o site, controle de credenciais provisórias (P1/P2), liberação de visitantes e inventário RFID.
+            <p className="text-xs text-slate-300 max-w-xl leading-relaxed print:hidden">
+              Consolidação estratégica: ocorrências, credenciais provisórias, controle de visitantes e inventário RFID.
             </p>
           </div>
 
@@ -636,52 +1162,68 @@ export default function DashboardExecutivoView({
             <button
               onClick={handleExportarPdf}
               disabled={exportandoPdf}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/40 text-xs font-bold transition-all shadow-lg hover:shadow-red-600/10 hover:border-red-400 disabled:opacity-50 cursor-pointer"
-              title="Exportar Relatório Consolidado do Período em PDF e salvar em CCO/exports"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600/25 hover:bg-red-600/35 text-white border border-red-400/50 text-xs font-bold transition-all shadow-lg hover:shadow-red-600/20 hover:border-red-300 disabled:opacity-50 cursor-pointer"
+              title={
+                abaAtiva === 'todas'
+                  ? 'Salvar Relatório Executivo Completo em PDF (4 Páginas Paisagem)'
+                  : 'Salvar Módulo Ativo em PDF (1 Página Paisagem)'
+              }
             >
               {exportandoPdf ? (
-                <Loader2 className="w-4 h-4 text-red-400 animate-spin" />
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
               ) : (
-                <FileDown className="w-4 h-4 text-red-400 shrink-0" />
+                <FileDown className="w-4 h-4 text-red-300 shrink-0" />
               )}
-              <span>Relatório PDF</span>
+              <span>
+                {exportandoPdf
+                  ? 'Gerando PDF...'
+                  : abaAtiva === 'todas'
+                  ? 'Salvar em PDF'
+                  : 'Salvar Módulo em PDF'}
+              </span>
             </button>
 
             <button
               onClick={handleExportarExcel}
               disabled={exportandoExcel}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition-all shadow-lg hover:shadow-emerald-600/10 hover:border-emerald-400 disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/25 hover:bg-emerald-600/35 text-white border border-emerald-400/50 text-xs font-bold transition-all shadow-lg hover:shadow-emerald-600/20 hover:border-emerald-300 disabled:opacity-50 cursor-pointer"
               title="Exportar Base de Dados Filtrada em Excel (.xlsx) e salvar em CCO/exports"
             >
               {exportandoExcel ? (
-                <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+                <Loader2 className="w-4 h-4 text-emerald-300 animate-spin" />
               ) : (
-                <FileSpreadsheet className="w-4 h-4 text-emerald-400 shrink-0" />
+                <FileSpreadsheet className="w-4 h-4 text-emerald-300 shrink-0" />
               )}
-              <span>Base Excel (.xlsx)</span>
+              <span>{exportandoExcel ? 'Gerando Excel...' : 'Base Excel (.xlsx)'}</span>
             </button>
 
             <button
               onClick={handleImprimir}
-              className="inline-flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-all cursor-pointer"
-              title="Imprimir visualização gerencial em modo Paisagem"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 text-xs font-semibold transition-all cursor-pointer"
+              title={
+                abaAtiva === 'todas'
+                  ? 'Imprimir visualização gerencial completa (4 Páginas Paisagem)'
+                  : 'Imprimir módulo selecionado (1 Página Paisagem)'
+              }
             >
-              <Printer className="w-3.5 h-3.5 text-slate-400" />
-              <span className="hidden sm:inline">Imprimir</span>
+              <Printer className="w-3.5 h-3.5 text-slate-200" />
+              <span className="hidden sm:inline">
+                {abaAtiva === 'todas' ? 'Imprimir' : 'Imprimir Módulo'}
+              </span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* ÁREA DE FILTROS INTELIGENTES SEGREGADOS POR CONTEXTO */}
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden shadow-lg transition-all print:hidden">
+      {/* ÁREA DE FILTROS INTELIGENTES SEGREGADOS POR CONTEXTO (OCULTO NA IMPRESSÃO) */}
+      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden shadow-lg transition-all no-print print:hidden">
         <div className="px-5 py-3.5 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 flex-wrap">
             <SlidersHorizontal className="w-4 h-4 text-blue-400" />
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
               Barra de Filtros Inteligente
             </h2>
-            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-blue-950/80 text-blue-400 border border-blue-800/60 font-semibold">
+            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-100 border border-blue-400/40 font-bold">
               {getPeriodoLabel()}
             </span>
           </div>
@@ -690,16 +1232,16 @@ export default function DashboardExecutivoView({
             <button
               type="button"
               onClick={limparFiltros}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               title="Restaurar todos os filtros para os valores padrão"
             >
-              <RotateCcw className="w-3 h-3 text-slate-400" />
+              <RotateCcw className="w-3 h-3 text-slate-300" />
               <span>Redefinir Filtros</span>
             </button>
             <button
               type="button"
               onClick={() => setFiltrosAbertos(!filtrosAbertos)}
-              className="text-xs text-blue-400 hover:text-blue-300 font-semibold px-2 py-1 rounded hover:bg-blue-500/10 transition-colors cursor-pointer"
+              className="text-xs text-blue-300 hover:text-blue-200 font-bold px-2 py-1 rounded hover:bg-blue-500/10 transition-colors cursor-pointer"
             >
               {filtrosAbertos ? 'Recolher Filtros' : 'Expandir Filtros'}
             </button>
@@ -711,15 +1253,15 @@ export default function DashboardExecutivoView({
             {/* Bloco 1: Filtro Temporal (Global) */}
             <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-blue-400" />
                   1. Filtro Temporal (Afeta Todos os Indicadores)
                 </span>
-                <span className="text-[10px] text-slate-500 font-medium">Período Operacional</span>
+                <span className="text-[10px] text-slate-300 font-semibold">Período Operacional</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-[10px] font-semibold text-slate-400 mb-1 block">Seleção de Período</label>
+                  <label className="text-[10px] font-semibold text-slate-300 mb-1 block">Seleção de Período</label>
                   <select
                     value={periodo}
                     onChange={(e) => setPeriodo(e.target.value)}
@@ -734,7 +1276,7 @@ export default function DashboardExecutivoView({
                   </select>
                 </div>
                 <div className="md:col-span-1 lg:col-span-2">
-                  <label className="text-[10px] font-semibold text-slate-400 mb-1 block">Intervalo de Datas (Início - Fim)</label>
+                  <label className="text-[10px] font-semibold text-slate-300 mb-1 block">Intervalo de Datas (Início - Fim)</label>
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="date"
@@ -772,12 +1314,15 @@ export default function DashboardExecutivoView({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {/* Prédio */}
                   <div>
-                    <label className="text-[10px] font-bold text-slate-300 mb-1 block uppercase">
+                    <label className="text-[10px] font-bold text-slate-200 mb-1 block uppercase">
                       Prédio (Local)
                     </label>
                     <select
                       value={filtroPredio}
-                      onChange={(e) => setFiltroPredio(e.target.value)}
+                      onChange={(e) => {
+                        setFiltroPredio(e.target.value);
+                        setFiltroArea('TODAS');
+                      }}
                       className="w-full bg-slate-950 border border-slate-700 hover:border-blue-500/60 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer truncate"
                     >
                       <option value="TODOS">Todos os Prédios (17)</option>
@@ -789,16 +1334,23 @@ export default function DashboardExecutivoView({
 
                   {/* Área */}
                   <div>
-                    <label className="text-[10px] font-bold text-slate-300 mb-1 block uppercase">
-                      Área / Setor
+                    <label className="text-[10px] font-bold text-slate-200 mb-1 block uppercase flex items-center justify-between">
+                      <span>Área / Setor</span>
+                      {filtroPredio !== 'TODOS' && (
+                        <span className="text-[9px] text-blue-400 font-mono">
+                          ({areasFiltroDisponiveis.length})
+                        </span>
+                      )}
                     </label>
                     <select
                       value={filtroArea}
                       onChange={(e) => setFiltroArea(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-700 hover:border-blue-500/60 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer truncate"
                     >
-                      <option value="TODAS">Todas as Áreas</option>
-                      {AREAS_CCO.map((a) => (
+                      <option value="TODAS">
+                        {filtroPredio !== 'TODOS' ? `Todas as Áreas (${areasFiltroDisponiveis.length})` : 'Todas as Áreas'}
+                      </option>
+                      {areasFiltroDisponiveis.map((a) => (
                         <option key={a} value={a}>{a}</option>
                       ))}
                     </select>
@@ -806,7 +1358,7 @@ export default function DashboardExecutivoView({
 
                   {/* Tópico de Ocorrência */}
                   <div>
-                    <label className="text-[10px] font-bold text-slate-300 mb-1 block uppercase">
+                    <label className="text-[10px] font-bold text-slate-200 mb-1 block uppercase">
                       Tópico de Ocorrência
                     </label>
                     <select
@@ -839,7 +1391,7 @@ export default function DashboardExecutivoView({
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-bold text-slate-300 mb-1 block uppercase">
+                    <label className="text-[10px] font-bold text-slate-200 mb-1 block uppercase">
                       Empresa do Colaborador / Visitante
                     </label>
                     <select
@@ -855,7 +1407,7 @@ export default function DashboardExecutivoView({
                   </div>
                 </div>
 
-                <p className="text-[10px] text-slate-400 leading-tight pt-2 border-t border-slate-800/80">
+                <p className="text-[10px] text-slate-300 leading-tight pt-2 border-t border-slate-800/80">
                   Filtra os cartões provisórios pendentes, taxa de reincidência e acessos de visitantes da empresa selecionada.
                 </p>
               </div>
@@ -864,816 +1416,1816 @@ export default function DashboardExecutivoView({
         )}
       </div>
 
-      {/* 4 CARDS PRINCIPAIS DE INDICADORES (GARANTIDO LADO A LADO NA TELA E NA IMPRESSÃO) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 print-dashboard-kpis print:grid print:grid-cols-4 gap-4 print:gap-3 print-avoid-break print:break-inside-avoid">
-        {/* CARD 1: OCORRÊNCIAS NO PERÍODO */}
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-blue-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity no-print">
-            <FileText className="w-20 h-20 text-blue-500" />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Ocorrências no Período
-            </span>
-            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 print:hidden">
-              <FileText className="w-4 h-4" />
-            </div>
-          </div>
+      {/* SELETOR DE ABAS DOS DASHBOARDS (OCULTO NA IMPRESSÃO) */}
+      <div className="flex items-center gap-2 p-2 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl no-print print:hidden overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('todas')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+            abaAtiva === 'todas'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>Visão Completa (Todos os 4 Dashboards Paisagem)</span>
+        </button>
 
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-white font-mono">{totalOcorrencias}</span>
-            <span className="text-xs font-semibold text-emerald-400 inline-flex items-center">
-              <TrendingUp className="w-3 h-3 mr-0.5" />
-              Filtradas
-            </span>
-          </div>
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('d1')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+            abaAtiva === 'd1'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          <Shield className="w-3.5 h-3.5" />
+          <span>1. Ocorrências</span>
+        </button>
 
-          <p className="text-xs text-slate-400 mt-1 truncate" title={`${criticas} Críticas • ${altas} Altas • ${medias} Médias • ${baixas} Baixas`}>
-            {criticas} Críticas • {altas} Altas • {medias} Médias • {baixas} Baixas
-          </p>
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('d2')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+            abaAtiva === 'd2'
+              ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          <CreditCard className="w-3.5 h-3.5" />
+          <span>2. Provisórios & Cautelas</span>
+        </button>
 
-          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs print:hidden">
-            <span className="text-[11px] text-slate-500">100% com RO e PDF</span>
-            <button
-              onClick={() => onNavigate && onNavigate('ocorrencias')}
-              className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 font-bold transition-colors cursor-pointer"
-            >
-              <span>Abrir RO</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('d3')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+            abaAtiva === 'd3'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          <UserCheck className="w-3.5 h-3.5" />
+          <span>3. Visitantes & Portarias</span>
+        </button>
 
-        {/* CARD 2: CREDENCIAIS PENDENTES DE DEVOLUÇÃO */}
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-amber-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity no-print">
-            <Clock className="w-20 h-20 text-amber-500" />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Pendentes Devolução
-            </span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 print:hidden">
-              <CreditCard className="w-4 h-4" />
-            </div>
-          </div>
-
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-amber-400 font-mono">{totalPendentes}</span>
-            <span className="text-xs font-bold text-red-400 px-1.5 py-0.5 rounded bg-red-950/60 border border-red-800/50">
-              Urgente
-            </span>
-          </div>
-
-          <p className="text-xs text-slate-400 mt-1">
-            {pendentesP1} na Portaria 1 (P1) • {pendentesP2} na Portaria 2 (P2)
-          </p>
-
-          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs print:hidden">
-            <span className="text-[11px] text-slate-500">Cartões em circulação</span>
-            <button
-              onClick={() => onNavigate && onNavigate('provisorios')}
-              className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 font-bold transition-colors cursor-pointer"
-            >
-              <span>Ver Provisórios</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* CARD 3: TAXA DE REINCIDÊNCIA (> 3 RETIRADAS) */}
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-rose-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity no-print">
-            <Flame className="w-20 h-20 text-rose-500" />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Taxa de Reincidência
-            </span>
-            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 print:hidden">
-              <BadgeAlert className="w-4 h-4" />
-            </div>
-          </div>
-
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-white font-mono">{taxaReincidencia}%</span>
-            <span className="text-xs font-semibold text-rose-400 inline-flex items-center">
-              {reincidentes.length} Reincidentes
-            </span>
-          </div>
-
-          <p className="text-xs text-slate-400 mt-1">
-            Regra dos 3 Acessos: Alerta ativo no cadastro
-          </p>
-
-          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs print:hidden">
-            <span className="text-[11px] text-slate-500">&gt; 3 provisórios no mês</span>
-            <button
-              onClick={() => onNavigate && onNavigate('provisorios')}
-              className="inline-flex items-center gap-1 text-rose-400 hover:text-rose-300 font-bold transition-colors cursor-pointer"
-            >
-              <span>Ver Reincidentes</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* CARD 4: CARTÕES PERDIDOS / PAGOS (RFID) */}
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-indigo-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity no-print">
-            <CreditCard className="w-20 h-20 text-indigo-500" />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Cartões Perdidos / Pagos
-            </span>
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 print:hidden">
-              <Radio className="w-4 h-4" />
-            </div>
-          </div>
-
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-indigo-300 font-mono">{rfidPagos} / {rfidPerdidos}</span>
-            <span className="text-xs font-bold text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/50">
-              {pctPagos}% Pagos
-            </span>
-          </div>
-
-          <p className="text-xs text-slate-400 mt-1">
-            {rfidPerdidos - rfidPagos} pendentes de regularização
-          </p>
-
-          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs print:hidden">
-            <span className="text-[11px] text-slate-500">{rfidPagos} regularizados via formulário</span>
-            <button
-              onClick={() => onNavigate && onNavigate('rfid')}
-              className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-bold transition-colors cursor-pointer"
-            >
-              <span>Gerir RFID</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('d4')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+            abaAtiva === 'd4'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          <DollarSign className="w-3.5 h-3.5" />
+          <span>4. RFID & Contabilidade</span>
+        </button>
       </div>
 
-      {/* SEÇÃO: DETALHAMENTO ANALÍTICO (4 TABELAS DE RESUMO RÁPIDO) */}
-      <div className="space-y-3.5 print-avoid-break print:break-inside-avoid">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
-          <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2 tracking-tight">
-              <Sparkles className="w-4 h-4 text-blue-400" />
-              Detalhamento Analítico
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                Resumo Operacional Crítico
-              </span>
-            </h2>
-            <p className="text-xs text-slate-400">
-              Dados prioritários e acionáveis para gestão imediata de segurança e conformidade
-            </p>
+      {/* CONTEÚDO INTERATIVO DO DASHBOARD NA TELA (OCULTO NA IMPRESSÃO E NO PDF) */}
+      <div className="print:hidden space-y-6">
+
+      {/* =========================================================================
+          DASHBOARD 1: OCORRÊNCIAS & SEGURANÇA PATRIMONIAL (PÁGINA 1 DEDICADA EM MODO PAISAGEM)
+         ========================================================================= */}
+      <div className={`dashboard-page-landscape dashboard-page-1 ${abaAtiva === 'd1' ? 'dashboard-page-single' : ''} w-full max-w-full p-6 print:px-6 print:py-1 bg-slate-950/30 rounded-2xl border border-slate-800/80 print:border-none print:bg-transparent space-y-6 print:space-y-1 mb-8 print:mb-0 ${
+        abaAtiva === 'todas' || abaAtiva === 'd1' ? 'block' : 'hidden'
+      }`}>
+        {/* Cabeçalho da Página 1 */}
+        <div className="border-b border-slate-800 pb-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 shrink-0">
+              <Shield className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 shrink-0">
+                  {abaAtiva === 'todas' ? 'Página 1 de 4' : 'Módulo 1 • Ocorrências'}
+                </span>
+                <span className="text-xs font-semibold text-slate-400">CCO Security Suite</span>
+              </div>
+              <h2 className="text-base sm:text-lg font-black text-white tracking-tight truncate">
+                DASHBOARD 1: OCORRÊNCIAS & SEGURANÇA PATRIMONIAL
+              </h2>
+            </div>
           </div>
-          <span className="text-[11px] text-slate-500 hidden sm:inline">
-            4 Visões Rápidas • Conexão Direta com os Módulos
-          </span>
+
+          {/* Informações do Operador - Canto Superior Direito Compacto e Limpo */}
+          <div className="header-operador-compacto flex flex-col items-end text-right shrink-0">
+            <div className="flex items-center gap-2 text-xs font-bold text-white">
+              <span className="text-slate-400 font-normal">Operador:</span>
+              <span className="font-mono text-slate-100 uppercase">{operadorAtivo}</span>
+              {turnoAtivo && (
+                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-mono font-semibold">
+                  {turnoAtivo}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium mt-0.5">
+              <span>{getPeriodoLabel()}</span>
+              <span className="text-slate-600">•</span>
+              <span>Emissão: {new Date().toLocaleDateString('pt-BR')}</span>
+            </div>
+          </div>
         </div>
 
-        {/* GRID 2x2 DAS 4 TABELAS DE RESUMO RÁPIDO */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 print-dashboard-detalhamento print:grid print:grid-cols-2 gap-4 print:gap-3 print-avoid-break print:break-inside-avoid">
-          
-          {/* TABELA 1: ALERTA DE REINCIDÊNCIA (PROVISÓRIOS) */}
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print:break-inside-avoid print-avoid-break">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                    <Flame className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-xs text-white uppercase tracking-wider">
-                      Alerta de Reincidência (Provisórios)
-                    </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Colaboradores com retiradas frequentes (Regra 3 acessos)
-                    </p>
-                  </div>
+          {/* 4 CARDS PRINCIPAIS DE INDICADORES (EXCLUSIVOS DE OCORRÊNCIAS) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 print-dashboard-kpis print:grid print:grid-cols-4 gap-4 print:gap-3 print-avoid-break print:break-inside-avoid">
+            {/* CARD 1: OCORRÊNCIAS NO PERÍODO */}
+            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-blue-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity no-print">
+                <FileText className="w-20 h-20 text-blue-500" />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                  Total de Ocorrências
+                </span>
+                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 print:hidden">
+                  <FileText className="w-4 h-4" />
                 </div>
+              </div>
+
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-3xl font-black text-white font-mono">{totalOcorrencias}</span>
+                <span className="text-xs font-semibold text-emerald-400 inline-flex items-center">
+                  <TrendingUp className="w-3 h-3 mr-0.5" />
+                  Filtradas
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-200 mt-1 truncate" title={`${criticas} Críticas • ${altas} Altas • ${medias} Médias • ${baixas} Baixas`}>
+                {criticas} Críticas • {altas} Altas • {medias} Médias • {baixas} Baixas
+              </p>
+
+              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs print:hidden">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/25 text-blue-100 border border-blue-400/50 shadow-sm">
+                  100% com RO formal
+                </span>
                 <button
-                  type="button"
-                  onClick={() => onNavigate && onNavigate('provisorios')}
-                  className="text-xs text-rose-400 hover:text-rose-300 font-bold inline-flex items-center gap-1 cursor-pointer print:hidden"
-                  title="Abrir Controle de Provisórios"
-                >
-                  <span>Ver Todos</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-400 print:break-inside-avoid print-avoid-break">
-                      <th className="py-2 px-2">Nome do Colaborador</th>
-                      <th className="py-2 px-2">Empresa</th>
-                      <th className="py-2 px-2 text-right">Qtd de Acessos no Mês</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {tabelaReincidentes.length > 0 ? (
-                      tabelaReincidentes.map((item, idx) => {
-                        const isCritico = item.totalAcessos >= 3;
-                        const isAlerta = item.totalAcessos === 2;
-                        return (
-                          <tr key={idx} className="hover:bg-slate-800/40 transition-colors print:break-inside-avoid print-avoid-break">
-                            <td className="py-2 px-2 font-medium text-slate-200 truncate max-w-[150px]">
-                              {item.nome}
-                            </td>
-                            <td className="py-2 px-2 text-slate-400 truncate max-w-[120px]">
-                              {item.empresa}
-                            </td>
-                            <td className="py-2 px-2 text-right">
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
-                                  isCritico
-                                    ? 'bg-rose-950/80 text-rose-300 border border-rose-700/60'
-                                    : isAlerta
-                                    ? 'bg-amber-950/80 text-amber-300 border border-amber-700/60'
-                                    : 'bg-slate-800 text-slate-300'
-                                }`}
-                              >
-                                {isCritico && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>}
-                                {item.totalAcessos} {item.totalAcessos === 1 ? 'acesso' : 'acessos'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr className="print:break-inside-avoid print-avoid-break">
-                        <td colSpan={3} className="py-4 text-center text-slate-500 text-xs">
-                          Nenhum registro de reincidência para os filtros ativos.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
-              <span>Critério: &ge; 3 acessos requer justificativa formal da liderança</span>
-            </div>
-          </div>
-
-          {/* TABELA 2: INADIMPLÊNCIA DE CREDENCIAIS (PERDIDOS NÃO PAGOS) */}
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print:break-inside-avoid print-avoid-break">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                    <CreditCard className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-xs text-white uppercase tracking-wider">
-                      Inadimplência de Credenciais
-                    </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Credenciais extraviadas pendentes de regularização
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onNavigate && onNavigate('rfid')}
-                  className="text-xs text-amber-400 hover:text-amber-300 font-bold inline-flex items-center gap-1 cursor-pointer print:hidden"
-                  title="Abrir Gestão RFID"
-                >
-                  <span>Gestão RFID</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-400 print:break-inside-avoid print-avoid-break">
-                      <th className="py-2 px-2">Nome</th>
-                      <th className="py-2 px-2">Empresa</th>
-                      <th className="py-2 px-2 text-right">Data da Perda</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {tabelaInadimplentes.length > 0 ? (
-                      tabelaInadimplentes.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-800/40 transition-colors print:break-inside-avoid print-avoid-break">
-                          <td className="py-2 px-2 font-medium text-slate-200">
-                            <div className="flex items-center gap-1.5">
-                              <span className="truncate max-w-[130px]" title={item.nome}>{item.nome}</span>
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-950/80 text-amber-300 border border-amber-800/50">
-                                {item.cartao}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-2 px-2 text-slate-400 truncate max-w-[110px]" title={item.empresa}>
-                            {item.empresa}
-                          </td>
-                          <td className="py-2 px-2 text-right font-mono text-slate-300 text-xs">
-                            <span>{item.dataPerda}</span>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr className="print:break-inside-avoid print-avoid-break">
-                        <td colSpan={3} className="py-4 text-center text-slate-500 text-xs">
-                          Nenhuma credencial extraviada pendente de regularização.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
-              <span>Cobrança e regularização controladas via formulário padrão de conformidade corporativa</span>
-            </div>
-          </div>
-
-          {/* TABELA 3: PRODUTIVIDADE CCO (OCORRÊNCIAS) */}
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print:break-inside-avoid print-avoid-break">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-xs text-white uppercase tracking-wider">
-                      Produtividade CCO (Ocorrências)
-                    </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Operadores com maior volume de ROs emitidos no período
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
                   onClick={() => onNavigate && onNavigate('ocorrencias')}
-                  className="text-xs text-blue-400 hover:text-blue-300 font-bold inline-flex items-center gap-1 cursor-pointer print:hidden"
-                  title="Criar Novo Relatório de Ocorrência"
+                  className="inline-flex items-center gap-1 text-blue-300 hover:text-white font-bold transition-colors cursor-pointer"
                 >
-                  <span>Novo RO</span>
+                  <span>Abrir RO</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
+            </div>
 
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-400 print:break-inside-avoid print-avoid-break">
-                      <th className="py-2 px-2">Operador CCO</th>
-                      <th className="py-2 px-2 text-right">Total de ROs Emitidos</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {tabelaProdutividade.length > 0 ? (
-                      tabelaProdutividade.map((item, idx) => {
-                        const isAtivo = item.operador === operadorAtivo;
-                        return (
-                          <tr key={idx} className={`hover:bg-slate-800/40 transition-colors ${isAtivo ? 'bg-blue-950/20' : ''} print:break-inside-avoid print-avoid-break`}>
-                            <td className="py-2 px-2 font-medium text-slate-200">
-                              <div className="flex items-center gap-1.5">
-                                <span className={isAtivo ? 'font-bold text-blue-300' : ''}>{item.operador}</span>
-                                {isAtivo && (
-                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                                    Turno Atual
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-2 px-2 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <div className="w-16 h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800 hidden sm:block">
-                                  <div
-                                    className="h-full bg-blue-500 rounded-full"
-                                    style={{ width: `${item.porcentagem}%` }}
-                                  ></div>
-                                </div>
-                                <span className="font-mono font-bold text-white text-xs">
-                                  {item.total} {item.total === 1 ? 'RO' : 'ROs'}
-                                </span>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr className="print:break-inside-avoid print-avoid-break">
-                        <td colSpan={2} className="py-4 text-center text-slate-500 text-xs">
-                          Nenhum RO emitido para o período filtrado.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+            {/* CARD 2: CRÍTICAS & GRAVES */}
+            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-red-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity no-print">
+                <AlertTriangle className="w-20 h-20 text-red-500" />
               </div>
-            </div>
-            <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
-              <span>Total consolidado: {totalOcorrencias} relatórios no período selecionado</span>
-            </div>
-          </div>
-
-          {/* TABELA 4: CARTÕES PROVISÓRIOS PENDENTES */}
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print:break-inside-avoid print-avoid-break">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/20">
-                    <Clock className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-xs text-white uppercase tracking-wider">
-                      Cartões Provisórios Pendentes
-                    </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Credenciais em aberto aguardando devolução nas portarias
-                    </p>
-                  </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                  Críticas & Graves
+                </span>
+                <div className="p-2 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 print:hidden">
+                  <AlertTriangle className="w-4 h-4" />
                 </div>
+              </div>
+
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-3xl font-black text-red-400 font-mono">{criticas + altas}</span>
+                <span className="text-xs font-bold text-red-100 px-1.5 py-0.5 rounded bg-red-500/25 border border-red-400/50">
+                  {pctCritica + pctAlta}% Urgentes
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-200 mt-1 truncate" title={`${criticas} Crítica(s) imediata(s) • ${altas} Alta severidade`}>
+                {criticas} Crítica(s) imediata(s) • {altas} Alta severidade
+              </p>
+
+              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs print:hidden">
+                <span className="text-[11px] text-slate-200 font-medium">Ação imediata requerida</span>
                 <button
-                  type="button"
-                  onClick={() => onNavigate && onNavigate('provisorios')}
-                  className="text-xs text-orange-400 hover:text-orange-300 font-bold inline-flex items-center gap-1 cursor-pointer print:hidden"
-                  title="Dar Baixa em Cartões Provisórios"
+                  onClick={() => onNavigate && onNavigate('ocorrencias')}
+                  className="inline-flex items-center gap-1 text-red-300 hover:text-white font-bold transition-colors cursor-pointer"
                 >
-                  <span>Dar Baixa</span>
+                  <span>Ver Ocorrências</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
+            </div>
 
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-400 print:break-inside-avoid print-avoid-break">
-                      <th className="py-2 px-2">Nome</th>
-                      <th className="py-2 px-2">Portaria</th>
-                      <th className="py-2 px-2 text-right">Hora Retirada</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {tabelaPendentes.length > 0 ? (
-                      tabelaPendentes.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-800/40 transition-colors print:break-inside-avoid print-avoid-break">
-                          <td className="py-2 px-2 font-medium text-slate-200">
-                            <div className="flex items-center gap-1.5">
-                              <span className="truncate max-w-[130px]" title={item.nome}>{item.nome}</span>
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-mono">
-                                {item.cartao}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-2 px-2">
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                                item.portaria === 'P1'
-                                  ? 'bg-blue-950/80 text-blue-300 border border-blue-800/50'
-                                  : 'bg-purple-950/80 text-purple-300 border border-purple-800/50'
-                              }`}
-                            >
-                              {item.portaria === 'P1' ? 'Portaria 1 (P1)' : 'Portaria 2 (P2)'}
-                            </span>
-                          </td>
-                          <td className="py-2 px-2 text-right font-mono text-amber-300 text-xs font-semibold">
-                            {item.horaRetirada}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr className="print:break-inside-avoid print-avoid-break">
-                        <td colSpan={3} className="py-4 text-center text-slate-500 text-xs">
-                          Nenhuma credencial pendente no momento.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+            {/* CARD 3: MÉDIAS & OPERACIONAIS */}
+            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-amber-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity no-print">
+                <ShieldAlert className="w-20 h-20 text-amber-500" />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                  Médias & Operacionais
+                </span>
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 print:hidden">
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-3xl font-black text-amber-400 font-mono">{medias + baixas}</span>
+                <span className="text-xs font-bold text-amber-100 px-1.5 py-0.5 rounded bg-amber-500/25 border border-amber-400/50">
+                  {pctMedia + pctBaixa}% Rotina
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-200 mt-1 truncate" title={`${medias} Médias de rotina • ${baixas} Baixa complexidade`}>
+                {medias} Médias de rotina • {baixas} Baixa complexidade
+              </p>
+
+              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs print:hidden">
+                <span className="text-[11px] text-slate-200 font-medium">Monitoramento e prevenção</span>
+                <button
+                  onClick={() => onNavigate && onNavigate('ocorrencias')}
+                  className="inline-flex items-center gap-1 text-amber-300 hover:text-white font-bold transition-colors cursor-pointer"
+                >
+                  <span>Ver Ocorrências</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
-            <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
-              <span>{pendentesP1} pendente(s) na P1 • {pendentesP2} pendente(s) na P2</span>
+
+            {/* CARD 4: RESOLUÇÃO & EVIDÊNCIAS */}
+            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-emerald-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity no-print">
+                <CheckCircle2 className="w-20 h-20 text-emerald-500" />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                  Resolução & Fotos
+                </span>
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 print:hidden">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-3xl font-black text-emerald-400 font-mono">{comFotosFormalizadas}</span>
+                <span className="text-xs font-bold text-blue-100 px-1.5 py-0.5 rounded bg-blue-500/25 border border-blue-400/50">
+                  {tempoMedioResposta}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-200 mt-1 truncate">
+                {totalOcorrencias === 0 ? 'Sem registros' : `${totalOcorrencias} relatórios formatados em PDF`}
+              </p>
+
+              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs print:hidden">
+                <span className="text-[11px] text-slate-200 font-medium">Conformidade e arquivo</span>
+                <button
+                  onClick={() => onNavigate && onNavigate('ocorrencias')}
+                  className="inline-flex items-center gap-1 text-emerald-300 hover:text-white font-bold transition-colors cursor-pointer"
+                >
+                  <span>Ver Módulo</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
 
-        </div>
-      </div>
-
-      {/* PAINÉIS DE ANÁLISE GRÁFICA & VISUALIZAÇÕES ESTRATÉGICAS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 print-dashboard-panels print:grid print:grid-cols-3 gap-6 print:gap-4 print-avoid-break print:break-inside-avoid">
-        {/* GRÁFICO 1: OCORRÊNCIAS POR GRAVIDADE & NATUREZA (AFETADO APENAS POR FILTROS DE OCORRÊNCIA) */}
-        <div className="lg:col-span-2 rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-xl flex flex-col justify-between print:border-slate-700 print:p-4 print:break-inside-avoid print-avoid-break">
-          <div>
+          {/* PAINEL DE DISTRIBUIÇÃO POR GRAVIDADE & INDICADORES DE RESOLUÇÃO */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-xl print:border-slate-700 print:p-4 print:break-inside-avoid print-avoid-break">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <div>
                 <h3 className="font-bold text-base text-white flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 text-blue-400" />
-                  Distribuição de Ocorrências por Gravidade & Natureza
+                  Distribuição de Ocorrências por Gravidade & Severidade
                 </h3>
-                <p className="text-xs text-slate-400">
-                  Visão consolidada dos relatórios no filtro: Prédio [{filtroPredio}], Área [{filtroArea}], Tópico [{filtroTopico}]
+                <p className="text-xs text-slate-200">
+                  Classificação operacional: Prédio [{filtroPredio}], Área [{filtroArea}], Tópico [{filtroTopico}]
                 </p>
               </div>
-              <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
+              <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-md bg-slate-800 text-slate-200 border border-slate-700">
                 Total: {totalOcorrencias} RO(s)
               </span>
             </div>
 
-            {/* Barras Visuais de Distribuição por Gravidade */}
-            <div className="space-y-3.5 mt-6">
-              <div>
+            {/* 4 Barras de Gravidade em Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80">
                 <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
-                    Crítica ({criticas} ocorrências)
+                    Crítica ({criticas})
                   </span>
-                  <span className="font-mono text-slate-400 font-bold">{pctCritica}%</span>
+                  <span className="font-mono text-red-200 font-extrabold">{pctCritica}%</span>
                 </div>
-                <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                  <div 
+                <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                  <div
                     className="h-full bg-gradient-to-r from-red-600 to-red-500 rounded-full transition-all duration-500"
                     style={{ width: `${Math.max(pctCritica, totalOcorrencias > 0 && criticas > 0 ? 5 : 0)}%` }}
                   ></div>
                 </div>
               </div>
 
-              <div>
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80">
                 <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-                    Alta ({altas} ocorrências)
+                    Alta ({altas})
                   </span>
-                  <span className="font-mono text-slate-400 font-bold">{pctAlta}%</span>
+                  <span className="font-mono text-orange-200 font-extrabold">{pctAlta}%</span>
                 </div>
-                <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                  <div 
+                <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                  <div
                     className="h-full bg-gradient-to-r from-orange-600 to-orange-500 rounded-full transition-all duration-500"
                     style={{ width: `${Math.max(pctAlta, totalOcorrencias > 0 && altas > 0 ? 5 : 0)}%` }}
                   ></div>
                 </div>
               </div>
 
-              <div>
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80">
                 <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                    Média ({medias} ocorrências)
+                    Média ({medias})
                   </span>
-                  <span className="font-mono text-slate-400 font-bold">{pctMedia}%</span>
+                  <span className="font-mono text-amber-200 font-extrabold">{pctMedia}%</span>
                 </div>
-                <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                  <div 
+                <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                  <div
                     className="h-full bg-gradient-to-r from-amber-600 to-amber-500 rounded-full transition-all duration-500"
                     style={{ width: `${Math.max(pctMedia, totalOcorrencias > 0 && medias > 0 ? 5 : 0)}%` }}
                   ></div>
                 </div>
               </div>
 
-              <div>
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80">
                 <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-                    Baixa ({baixas} ocorrências)
+                    Baixa ({baixas})
                   </span>
-                  <span className="font-mono text-slate-400 font-bold">{pctBaixa}%</span>
+                  <span className="font-mono text-blue-200 font-extrabold">{pctBaixa}%</span>
                 </div>
-                <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                  <div 
+                <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                  <div
                     className="h-full bg-gradient-to-r from-blue-600 to-blue-500 rounded-full transition-all duration-500"
                     style={{ width: `${Math.max(pctBaixa, totalOcorrencias > 0 && baixas > 0 ? 5 : 0)}%` }}
                   ></div>
                 </div>
               </div>
             </div>
+
+            {/* Destaque de Resolução */}
+            <div className="mt-5 pt-4 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center print:border-slate-700">
+              <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 print:border-slate-700">
+                <span className="text-[10px] uppercase font-bold text-slate-200">Tempo Médio de Resposta</span>
+                <p className="text-sm font-mono font-bold text-white mt-0.5">{tempoMedioResposta}</p>
+              </div>
+              <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 print:border-slate-700">
+                <span className="text-[10px] uppercase font-bold text-slate-200">Com Fotos / Evidências</span>
+                <p className="text-sm font-mono font-bold text-blue-300 mt-0.5">{comFotosFormalizadas}</p>
+              </div>
+              <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 print:border-slate-700">
+                <span className="text-[10px] uppercase font-bold text-slate-200">PDFs Salvos na Rede</span>
+                <p className="text-sm font-mono font-bold text-emerald-300 mt-0.5">
+                  {totalOcorrencias === 0 ? '0 Arquivos' : `${totalOcorrencias} ${totalOcorrencias === 1 ? 'Arquivo' : 'Arquivos'}`}
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* Destaque de Resolução */}
-          <div className="mt-6 pt-4 border-t border-slate-800 grid grid-cols-3 gap-3 text-center print:border-slate-700">
-            <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 print:border-slate-700">
-              <span className="text-[10px] uppercase font-bold text-slate-400">Tempo Médio Resposta</span>
-              <p className="text-sm font-mono font-bold text-slate-200 mt-0.5">18 min</p>
-            </div>
-            <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 print:border-slate-700">
-              <span className="text-[10px] uppercase font-bold text-slate-400">Com Fotos Formalizadas</span>
-              <p className="text-sm font-mono font-bold text-blue-400 mt-0.5">100% (Anexo 1)</p>
-            </div>
-            <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 print:border-slate-700">
-              <span className="text-[10px] uppercase font-bold text-slate-400">PDFs Salvos na Rede</span>
-              <p className="text-sm font-mono font-bold text-emerald-400 mt-0.5">{totalOcorrencias} Arquivos</p>
-            </div>
-          </div>
-        </div>
-
-        {/* GRÁFICO 2: FLUXO DE PORTARIAS (P1 VS P2) & VISITANTES (AFETADO APENAS POR EMPRESA) */}
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-xl flex flex-col justify-between print:border-slate-700 print:p-4 print:break-inside-avoid print-avoid-break">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-base text-white flex items-center gap-2">
-                <Building className="w-4 h-4 text-amber-400" />
-                Fluxo por Portaria
-              </h3>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                P1 & P2
+          {/* SEÇÃO: DETALHAMENTO ANALÍTICO (4 TABELAS 100% EXCLUSIVAS DE OCORRÊNCIAS) */}
+          <div className="space-y-3.5 print-avoid-break print:break-inside-avoid">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2 tracking-tight">
+                  <Sparkles className="w-4 h-4 text-blue-400" />
+                  Detalhamento Analítico de Ocorrências
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/25 text-blue-100 border border-blue-400/40">
+                    Segurança Patrimonial
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-300">
+                  Dados analíticos consolidados: Prédios, Classificação por Tópico, Produtividade do CCO e Últimos Registros
+                </p>
+              </div>
+              <span className="text-[11px] text-slate-300 font-medium hidden sm:inline">
+                4 Visões Analíticas Exclusivas de Ocorrências
               </span>
             </div>
-            <p className="text-xs text-slate-400 mb-5">
-              Volume comparativo de liberações provisórias e visitantes {filtroEmpresa !== 'TODAS' ? `da empresa ${filtroEmpresa}` : 'no período'}
+
+            {/* GRID 2x2 DAS 4 TABELAS DE OCORRÊNCIAS */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 print-dashboard-detalhamento print:grid print:grid-cols-2 gap-4 print:gap-3 print-avoid-break print:break-inside-avoid">
+              
+              {/* TABELA 1: INCIDÊNCIA POR PRÉDIO / LOCALIDADE */}
+              <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print:break-inside-avoid print-avoid-break">
+                <div>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                        <Building className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-xs text-white uppercase tracking-wider">
+                          Incidência por Prédio / Localidade
+                        </h3>
+                        <p className="text-[11px] text-slate-300">
+                          Prédios com maior concentração de ocorrências
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-200 print:break-inside-avoid print-avoid-break">
+                          <th className="py-2 px-2">Prédio / Local</th>
+                          <th className="py-2 px-2 text-right">Qtd ROs</th>
+                          <th className="py-2 px-2 text-right">% Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {ocorrenciasPorPredio.length > 0 ? (
+                          ocorrenciasPorPredio.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-slate-800/40 transition-colors print:break-inside-avoid print-avoid-break">
+                              <td className="py-2 px-2 font-medium text-slate-200 truncate max-w-[180px]">
+                                {item.predio}
+                              </td>
+                              <td className="py-2 px-2 text-right font-mono font-bold text-white">
+                                {item.total} {item.total === 1 ? 'RO' : 'ROs'}
+                              </td>
+                              <td className="py-2 px-2 text-right">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono font-black bg-blue-600/30 text-white border border-blue-400/50 shadow-sm">
+                                  {item.porcentagem}%
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr className="print:break-inside-avoid print-avoid-break">
+                            <td colSpan={3} className="py-4 text-center text-slate-300 text-xs font-medium">
+                              Nenhuma ocorrência registrada no período filtrado.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-300 font-medium">
+                  <span>Monitoramento territorial e ronda preventiva nos prédios</span>
+                </div>
+              </div>
+
+              {/* TABELA 2: CLASSIFICAÇÃO POR TÓPICO & NATUREZA */}
+              <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print:break-inside-avoid print-avoid-break">
+                <div>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-xs text-white uppercase tracking-wider">
+                          Classificação por Tópico & Natureza
+                        </h3>
+                        <p className="text-[11px] text-slate-300">
+                          Natureza e tipificação mais recorrentes
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-200 print:break-inside-avoid print-avoid-break">
+                          <th className="py-2 px-2">Tópico / Categoria</th>
+                          <th className="py-2 px-2 text-right">Qtd ROs</th>
+                          <th className="py-2 px-2 text-right">% Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {ocorrenciasPorTopico.length > 0 ? (
+                          ocorrenciasPorTopico.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-slate-800/40 transition-colors print:break-inside-avoid print-avoid-break">
+                              <td className="py-2 px-2 font-medium text-slate-200 truncate max-w-[180px]">
+                                {item.topico}
+                              </td>
+                              <td className="py-2 px-2 text-right font-mono font-bold text-indigo-200">
+                                {item.total} {item.total === 1 ? 'RO' : 'ROs'}
+                              </td>
+                              <td className="py-2 px-2 text-right">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono font-black bg-indigo-600/30 text-white border border-indigo-400/50 shadow-sm">
+                                  {item.porcentagem}%
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr className="print:break-inside-avoid print-avoid-break">
+                            <td colSpan={3} className="py-4 text-center text-slate-300 text-xs font-medium">
+                              Nenhum registro classificado no período filtrado.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-300 font-medium">
+                  <span>Taxonomia oficial padronizada para auditorias de segurança</span>
+                </div>
+              </div>
+
+              {/* TABELA 3: PRODUTIVIDADE CCO (OCORRÊNCIAS) */}
+              <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print:break-inside-avoid print-avoid-break">
+                <div>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-xs text-white uppercase tracking-wider">
+                          Produtividade CCO (Operadores)
+                        </h3>
+                        <p className="text-[11px] text-slate-300">
+                          Emissão de relatórios por operador no período
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate && onNavigate('ocorrencias')}
+                      className="text-xs text-blue-300 hover:text-white font-bold inline-flex items-center gap-1 cursor-pointer print:hidden"
+                      title="Criar Novo Relatório de Ocorrência"
+                    >
+                      <span>Novo RO</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-200 print:break-inside-avoid print-avoid-break">
+                          <th className="py-2 px-2">Operador CCO</th>
+                          <th className="py-2 px-2 text-right">Total Emitido</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {tabelaProdutividade.length > 0 ? (
+                          tabelaProdutividade.map((item, idx) => {
+                            const isAtivo = item.operador === operadorAtivo;
+                            return (
+                              <tr key={idx} className={`hover:bg-slate-800/40 transition-colors ${isAtivo ? 'bg-blue-950/20' : ''} print:break-inside-avoid print-avoid-break`}>
+                                <td className="py-2 px-2 font-medium text-slate-200">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={isAtivo ? 'font-bold text-white' : 'text-slate-200'}>{item.operador}</span>
+                                    {isAtivo && (
+                                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/25 text-blue-100 border border-blue-400/40 font-bold">
+                                        Turno Atual
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-2 px-2 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <div className="w-16 h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800 hidden sm:block">
+                                      <div
+                                        className="h-full bg-emerald-500 rounded-full"
+                                        style={{ width: `${item.porcentagem}%` }}
+                                      ></div>
+                                    </div>
+                                    <span className="font-mono font-bold text-white text-xs">
+                                      {item.total} {item.total === 1 ? 'RO' : 'ROs'}
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr className="print:break-inside-avoid print-avoid-break">
+                            <td colSpan={2} className="py-4 text-center text-slate-300 text-xs font-medium">
+                              Nenhum RO emitido para o período filtrado.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-300 font-medium">
+                  <span>Total consolidado: {totalOcorrencias} relatórios no período selecionado</span>
+                </div>
+              </div>
+
+              {/* TABELA 4: ÚLTIMAS OCORRÊNCIAS REGISTRADAS */}
+              <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print:break-inside-avoid print-avoid-break">
+                <div>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-xs text-white uppercase tracking-wider">
+                          Últimas Ocorrências Registradas
+                        </h3>
+                        <p className="text-[11px] text-slate-300">
+                          ROs mais recentes com severidade e horário
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate && onNavigate('ocorrencias')}
+                      className="text-xs text-amber-300 hover:text-white font-bold inline-flex items-center gap-1 cursor-pointer print:hidden"
+                      title="Abrir Módulo de Ocorrências"
+                    >
+                      <span>Ver Todos</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-200 print:break-inside-avoid print-avoid-break">
+                          <th className="py-2 px-2">Protocolo / Prédio</th>
+                          <th className="py-2 px-2">Gravidade</th>
+                          <th className="py-2 px-2 text-right">Data/Hora</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {ultimasOcorrencias.length > 0 ? (
+                          ultimasOcorrencias.map((item, idx) => {
+                            return (
+                              <tr key={idx} className="hover:bg-slate-800/40 transition-colors print:break-inside-avoid print-avoid-break">
+                                <td className="py-2 px-2 font-medium text-slate-200">
+                                  <div className="flex flex-col">
+                                    <span className="font-mono text-blue-300 font-bold text-[11px]">{item.numeroRO || 'RO-2026'}</span>
+                                    <span className="text-slate-300 text-xs truncate max-w-[150px]">{item.predio || item.local || 'Planta Operacional'}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-2">
+                                  <span
+                                    className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      item.gravidade === 'Crítica'
+                                        ? 'bg-red-500/25 text-red-100 border border-red-400/50'
+                                        : item.gravidade === 'Alta' || item.gravidade === 'Grave'
+                                        ? 'bg-orange-500/25 text-orange-100 border border-orange-400/50'
+                                        : item.gravidade === 'Média'
+                                        ? 'bg-amber-500/25 text-amber-100 border border-amber-400/50'
+                                        : 'bg-blue-500/25 text-blue-100 border border-blue-400/50'
+                                    }`}
+                                  >
+                                    {item.gravidade || 'Média'}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-2 text-right font-mono text-slate-200 text-xs">
+                                  <span>{item.data ? `${item.data.substring(8, 10)}/${item.data.substring(5, 7)}` : '--'} {item.hora || ''}</span>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr className="print:break-inside-avoid print-avoid-break">
+                            <td colSpan={3} className="py-4 text-center text-slate-300 text-xs font-medium">
+                              Nenhuma ocorrência encontrada.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-300 font-medium">
+                  <span>Protocolos arquivados com fotos e evidências</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Rodapé Oficial da Página 1 */}
+          <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 font-medium">
+            <span>CCO Security Suite • Central de Controle Operacional • Gestão de Ocorrências</span>
+            <span className="font-bold text-slate-300">{abaAtiva === 'todas' ? 'Página 1 de 4' : 'Página 1 de 1'}</span>
+          </div>
+        </div>
+
+    {/* =========================================================================
+        DASHBOARD 2: PROVISÓRIOS / MOVIMENTAÇÃO (PÁGINA 2 DEDICADA EM MODO PAISAGEM)
+       ========================================================================= */}
+    <div className={`dashboard-page-landscape dashboard-page-2 ${abaAtiva === 'd2' ? 'dashboard-page-single' : ''} w-full max-w-full p-6 print:px-6 print:py-1 bg-slate-950/30 rounded-2xl border border-slate-800/80 print:border-none print:bg-transparent space-y-6 print:space-y-1 mb-8 print:mb-0 ${
+      abaAtiva === 'todas' || abaAtiva === 'd2' ? 'block' : 'hidden'
+    }`}>
+      {/* Cabeçalho da Página 2 */}
+      <div className="border-b border-slate-800 pb-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 rounded-xl bg-amber-600/20 text-amber-400 border border-amber-500/30 shrink-0">
+            <CreditCard className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-amber-500/25 text-amber-100 border border-amber-400/40 shrink-0">
+                {abaAtiva === 'todas' ? 'Página 2 de 4' : 'Módulo 2 • Provisórios'}
+              </span>
+              <span className="text-xs font-semibold text-slate-400">CCO Security Suite</span>
+            </div>
+            <h2 className="text-base sm:text-lg font-black text-white tracking-tight truncate">
+              DASHBOARD 2: PROVISÓRIOS / MOVIMENTAÇÃO & CAUTELAS
+            </h2>
+          </div>
+        </div>
+
+        {/* Informações do Operador - Canto Superior Direito Compacto e Limpo */}
+        <div className="header-operador-compacto flex flex-col items-end text-right shrink-0">
+          <div className="flex items-center gap-2 text-xs font-bold text-white">
+            <span className="text-slate-400 font-normal">Operador:</span>
+            <span className="font-mono text-slate-100 uppercase">{operadorAtivo}</span>
+            {turnoAtivo && (
+              <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-mono font-semibold">
+                {turnoAtivo}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium mt-0.5">
+            <span>{getPeriodoLabel()}</span>
+            <span className="text-slate-600">•</span>
+            <span>Emissão: {new Date().toLocaleDateString('pt-BR')}</span>
+          </div>
+        </div>
+      </div>
+
+        {/* 4 CARDS DE KPIS DO DASHBOARD 2 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 print-dashboard-kpis print:grid print:grid-cols-4 gap-4 print:gap-3 print-avoid-break print:break-inside-avoid">
+          {/* KPI 1: Cautelas Ativas */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-amber-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                Cautelas Ativas
+              </span>
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 print:hidden">
+                <CreditCard className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-black text-amber-400 font-mono">{metricasProvisorios.totalCautelasAtivas}</span>
+              <span className="text-xs font-bold text-amber-100 px-1.5 py-0.5 rounded bg-amber-500/25 border border-amber-400/50">
+                Em Posse
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 mt-1">
+              {metricasProvisorios.ocupadosP1} na Portaria 1 (P1) • {metricasProvisorios.ocupadosP2} na Portaria 2 (P2)
             </p>
-
-            {/* Comparativo de Barras P1 vs P2 */}
-            <div className="space-y-4">
-              <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2 print:border-slate-700">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-amber-400">Portaria 1 (P1) - Principal</span>
-                  <span className="font-mono text-white font-bold">{totalLibP1} liberações ({pctP1}%)</span>
-                </div>
-                <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all duration-500" 
-                    style={{ width: `${pctP1}%` }}
-                  ></div>
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                  <span>Provisórios: {provP1Total}</span>
-                  <span>Visitantes: {visP1Total}</span>
-                </div>
-              </div>
-
-              <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2 print:border-slate-700">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-indigo-400">Portaria 2 (P2) - Serviços / Carga</span>
-                  <span className="font-mono text-white font-bold">{totalLibP2} liberações ({pctP2}%)</span>
-                </div>
-                <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-indigo-500 to-indigo-400 rounded-full transition-all duration-500" 
-                    style={{ width: `${pctP2}%` }}
-                  ></div>
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                  <span>Provisórios: {provP2Total}</span>
-                  <span>Visitantes: {visP2Total}</span>
-                </div>
-              </div>
-            </div>
           </div>
 
-          {/* Resumo Visitantes */}
-          <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between print:border-slate-700">
-            <div className="flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-emerald-400" />
+          {/* KPI 2: Itens Devolvidos Hoje */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-emerald-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                Devolvidos Hoje
+              </span>
+              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 print:hidden">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-black text-emerald-400 font-mono">{metricasProvisorios.totalDevolvidosHoje}</span>
+              <span className="text-xs font-semibold text-emerald-400 inline-flex items-center">
+                <TrendingUp className="w-3 h-3 mr-0.5" />
+                Hoje
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 mt-1">
+              Retornados e liberados no escaninho físico
+            </p>
+          </div>
+
+          {/* KPI 3: Alertas de Reincidência */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-rose-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                Alertas Reincidência
+              </span>
+              <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 print:hidden">
+                <Flame className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-black text-rose-400 font-mono">{reincidentes.length}</span>
+              <span className="text-xs font-bold text-rose-100 px-1.5 py-0.5 rounded bg-rose-500/25 border border-rose-400/50">
+                ≥ 3 Acessos
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 mt-1">
+              Regra dos 3 acessos: Exige justificativa formal
+            </p>
+          </div>
+
+          {/* KPI 4: Taxa de Ocupação do Escaninho Físico */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-indigo-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                Ocupação Escaninho
+              </span>
+              <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 print:hidden">
+                <Layers className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-black text-indigo-300 font-mono">{metricasProvisorios.taxaOcupacaoEscaninho}%</span>
+              <span className="text-xs font-semibold text-slate-200">
+                {metricasProvisorios.totalSlotsOcupados} / 20 slots
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 mt-1">
+              {20 - metricasProvisorios.totalSlotsOcupados} cartões disponíveis nas portarias
+            </p>
+          </div>
+        </div>
+
+        {/* BLOCO FINANCEIRO / PERDAS (PROVISÓRIOS) */}
+        <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/20 border border-slate-800 p-4 shadow-lg print:border-slate-700 print:p-3 print-avoid-break">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <DollarSign className="w-4 h-4" />
+              </div>
               <div>
-                <p className="text-xs font-bold text-white">{visitantesFiltrados.length} Visitantes Totais</p>
-                <p className="text-[10px] text-slate-400">100% com anfitrião registrado</p>
+                <h3 className="font-bold text-xs text-white uppercase tracking-wider">
+                  Perdidos vs. Ressarcidos (Módulo Provisórios)
+                </h3>
+                <p className="text-[11px] text-slate-200 font-medium">
+                  Controle financeiro de 2ª via e ressarcimentos de credenciais provisórias extraviadas
+                </p>
               </div>
             </div>
-            <button
-              onClick={() => onNavigate && onNavigate('visitantes')}
-              className="text-xs text-emerald-400 hover:text-emerald-300 font-bold inline-flex items-center gap-1 cursor-pointer print:hidden"
-            >
-              <span>Ver Acessos</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="font-bold text-red-300 font-mono">
+                {metricasProvisorios.totalPerdas} a cobrar (R$ {metricasProvisorios.valorACobrar},00)
+              </span>
+              <span className="text-slate-600">•</span>
+              <span className="font-bold text-emerald-300 font-mono">
+                {metricasProvisorios.totalPagos} pagos (R$ {metricasProvisorios.valorRecuperado},00)
+              </span>
+            </div>
+          </div>
+
+          {/* Barra de Progresso Financeiro */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] text-slate-200 font-semibold">
+              <span>Taxa de Recuperação Financeira de Provisórios</span>
+              <span className="font-bold font-mono text-white">{metricasProvisorios.pctRessarcimento}% Quitados</span>
+            </div>
+            <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+              <div 
+                className="h-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-400 rounded-full transition-all duration-500"
+                style={{ width: `${metricasProvisorios.pctRessarcimento}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* GRADES ANALÍTICAS (2x2) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 print:grid print:grid-cols-2 gap-4 print:gap-3 print-avoid-break">
+          {/* Tabela 1: Cautelas Ativas */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print-avoid-break">
+            <div>
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                <h4 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  Cautelas Ativas em Circulação
+                </h4>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/25 text-amber-100 border border-amber-400/50">
+                  {metricasProvisorios.totalCautelasAtivas} Ativas
+                </span>
+              </div>
+              <div className="mt-2.5 overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-200">
+                      <th className="py-1.5 px-2">Colaborador</th>
+                      <th className="py-1.5 px-2">Empresa</th>
+                      <th className="py-1.5 px-2">Cartão/Port.</th>
+                      <th className="py-1.5 px-2 text-right">Retirada</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {metricasProvisorios.cautelasAtivas.slice(0, 5).map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-1.5 px-2 font-medium text-slate-200 truncate max-w-[120px]">{item.colaborador || item.nome}</td>
+                        <td className="py-1.5 px-2 text-slate-300 truncate max-w-[100px]">{item.empresa}</td>
+                        <td className="py-1.5 px-2 font-mono text-amber-300 font-bold">{item.cartao} ({item.portaria})</td>
+                        <td className="py-1.5 px-2 text-right font-mono text-slate-200">{item.horaRetirada}</td>
+                      </tr>
+                    ))}
+                    {metricasProvisorios.cautelasAtivas.length === 0 && (
+                      <tr><td colSpan={4} className="py-3 text-center text-slate-300 text-xs font-medium">Nenhuma cautela ativa no momento.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-300 font-medium mt-2 pt-2 border-t border-slate-800/60">Portaria 1: 01 a 10 • Portaria 2: 11 a 20</p>
+          </div>
+
+          {/* Tabela 2: Colaboradores Reincidentes */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print-avoid-break">
+            <div>
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                <h4 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-rose-400" />
+                  Reincidentes no Mês (Regra 3 Acessos)
+                </h4>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/25 text-rose-100 border border-rose-400/50">
+                  {reincidentes.length} Reincidentes
+                </span>
+              </div>
+              <div className="mt-2.5 overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-200">
+                      <th className="py-1.5 px-2">Nome</th>
+                      <th className="py-1.5 px-2">Empresa</th>
+                      <th className="py-1.5 px-2 text-right">Retiradas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {tabelaReincidentes.slice(0, 5).map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-1.5 px-2 font-medium text-slate-200 truncate max-w-[130px]">{item.nome}</td>
+                        <td className="py-1.5 px-2 text-slate-300 truncate max-w-[110px]">{item.empresa}</td>
+                        <td className="py-1.5 px-2 text-right">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${item.totalAcessos >= 3 ? 'bg-rose-500/25 text-rose-100 border border-rose-400/50 font-bold' : 'bg-slate-800 text-slate-100 border border-slate-700 font-bold'}`}>
+                            {item.totalAcessos} acessos
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {tabelaReincidentes.length === 0 && (
+                      <tr><td colSpan={3} className="py-3 text-center text-slate-300 text-xs font-medium">Nenhum colaborador reincidente registrado.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-300 font-medium mt-2 pt-2 border-t border-slate-800/60">Critério: ≥ 3 retiradas exige justificativa da gerência</p>
+          </div>
+
+          {/* Tabela 3: Extravios de Provisórios com Botão de Quitação */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print-avoid-break">
+            <div>
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                <h4 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  Extravios de Provisórios (Cobrança)
+                </h4>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/25 text-red-100 border border-red-400/50">
+                  {metricasProvisorios.totalPerdas} Pendentes
+                </span>
+              </div>
+              <div className="mt-2.5 overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-200">
+                      <th className="py-1.5 px-2">Colaborador</th>
+                      <th className="py-1.5 px-2">Cartão</th>
+                      <th className="py-1.5 px-2">Empresa</th>
+                      <th className="py-1.5 px-2 text-right print:hidden">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {metricasProvisorios.perdidos.slice(0, 5).map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-1.5 px-2 font-medium text-slate-200 truncate max-w-[120px]">{item.colaborador || item.nome}</td>
+                        <td className="py-1.5 px-2 font-mono text-amber-300 font-bold">{item.cartao}</td>
+                        <td className="py-1.5 px-2 text-slate-300 truncate max-w-[100px]">{item.empresa}</td>
+                        <td className="py-1.5 px-2 text-right print:hidden">
+                          <button
+                            type="button"
+                            onClick={() => handleQuitarProvisorio(item.id)}
+                            className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
+                            title="Marcar como Pago / Quitado"
+                          >
+                            À Pagar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {metricasProvisorios.perdidos.length === 0 && (
+                      <tr><td colSpan={4} className="py-3 text-center text-slate-300 text-xs font-medium">Nenhum extravio pendente de quitação.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-300 font-medium mt-2 pt-2 border-t border-slate-800/60">Ressarcimento padrão: R$ 30,00 por credencial extraviada</p>
+          </div>
+
+          {/* Painel 4: Ocupação do Escaninho Físico P1 vs P2 */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print-avoid-break">
+            <div>
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                <h4 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-indigo-400" />
+                  Ocupação do Escaninho Físico
+                </h4>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-500/25 text-indigo-100 border border-indigo-400/40">
+                  20 Slots Totais
+                </span>
+              </div>
+              <div className="mt-3 space-y-3">
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="font-bold text-blue-300">Portaria 1 (P1) • Slots 01 a 10</span>
+                    <span className="font-mono text-white font-bold">{metricasProvisorios.ocupadosP1} / 10 em uso</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, (metricasProvisorios.ocupadosP1 / 10) * 100)}%` }}></div>
+                  </div>
+                  <p className="text-[10px] text-slate-200 mt-1">{10 - metricasProvisorios.ocupadosP1} cartões disponíveis no escaninho P1</p>
+                </div>
+
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="font-bold text-purple-300">Portaria 2 (P2) • Slots 11 a 20</span>
+                    <span className="font-mono text-white font-bold">{metricasProvisorios.ocupadosP2} / 10 em uso</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                    <div className="h-full bg-purple-500 rounded-full" style={{ width: `${Math.min(100, (metricasProvisorios.ocupadosP2 / 10) * 100)}%` }}></div>
+                  </div>
+                  <p className="text-[10px] text-slate-200 mt-1">{10 - metricasProvisorios.ocupadosP2} cartões disponíveis no escaninho P2</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-300 font-medium mt-2 pt-2 border-t border-slate-800/60">Disponibilidade física monitorada em tempo real</p>
+          </div>
+        </div>
+
+        {/* Rodapé Oficial da Página 2 */}
+        <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 font-medium">
+          <span>CCO Security Suite • Central de Controle Operacional • Módulo Provisórios</span>
+          <span className="font-bold text-slate-300">{abaAtiva === 'todas' ? 'Página 2 de 4' : 'Página 1 de 1'}</span>
+        </div>
+      </div>
+
+    {/* =========================================================================
+        DASHBOARD 3: VISITANTES & CONTROLE DE PORTARIAS (PÁGINA 3 DEDICADA EM MODO PAISAGEM)
+       ========================================================================= */}
+    <div className={`dashboard-page-landscape dashboard-page-3 ${abaAtiva === 'd3' ? 'dashboard-page-single' : ''} w-full max-w-full p-6 print:px-6 print:py-1 bg-slate-950/30 rounded-2xl border border-slate-800/80 print:border-none print:bg-transparent space-y-6 print:space-y-1 mb-8 print:mb-0 ${
+      abaAtiva === 'todas' || abaAtiva === 'd3' ? 'block' : 'hidden'
+    }`}>
+      {/* Cabeçalho da Página 3 */}
+      <div className="border-b border-slate-800 pb-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 rounded-xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 shrink-0">
+            <UserCheck className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-500/25 text-emerald-100 border border-emerald-400/40 shrink-0">
+                {abaAtiva === 'todas' ? 'Página 3 de 4' : 'Módulo 3 • Visitantes'}
+              </span>
+              <span className="text-xs font-semibold text-slate-400">CCO Security Suite</span>
+            </div>
+            <h2 className="text-base sm:text-lg font-black text-white tracking-tight truncate">
+              DASHBOARD 3: VISITANTES & CONTROLE DE PORTARIAS
+            </h2>
+          </div>
+        </div>
+
+        {/* Informações do Operador - Canto Superior Direito Compacto e Limpo */}
+        <div className="header-operador-compacto flex flex-col items-end text-right shrink-0">
+          <div className="flex items-center gap-2 text-xs font-bold text-white">
+            <span className="text-slate-400 font-normal">Operador:</span>
+            <span className="font-mono text-slate-100 uppercase">{operadorAtivo}</span>
+            {turnoAtivo && (
+              <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-mono font-semibold">
+                {turnoAtivo}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium mt-0.5">
+            <span>{getPeriodoLabel()}</span>
+            <span className="text-slate-600">•</span>
+            <span>Emissão: {new Date().toLocaleDateString('pt-BR')}</span>
           </div>
         </div>
       </div>
 
-      {/* ATALHOS DE NAVEGAÇÃO RÁPIDA PARA OS 4 MÓDULOS */}
-      <div className="print-avoid-break print:break-inside-avoid">
-        <div className="flex items-center justify-between mb-3 px-1">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            Acesso Rápido aos Módulos Operacionais
-          </h3>
-          <span className="text-[11px] text-slate-500 print:hidden">
-            Clique no módulo desejado para abrir o fluxo de trabalho
-          </span>
+        {/* 4 CARDS DE KPIS DO DASHBOARD 3 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 print-dashboard-kpis print:grid print:grid-cols-4 gap-4 print:gap-3 print-avoid-break print:break-inside-avoid">
+          {/* KPI 1: Visitantes no Site Agora */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-emerald-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                Visitantes no Site
+              </span>
+              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 print:hidden">
+                <UserCheck className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-black text-emerald-400 font-mono">{metricasVisitantes.totalNoSite}</span>
+              <span className="text-xs font-bold text-emerald-100 px-2 py-0.5 rounded bg-emerald-500/25 border border-emerald-400/50">
+                Em Trânsito
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 font-medium mt-1">
+              {metricasVisitantes.noSiteP1} na Portaria 1 (P1) • {metricasVisitantes.noSiteP2} na Portaria 2 (P2)
+            </p>
+          </div>
+
+          {/* KPI 2: Fluxo do Dia (Entrada vs Saída) */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-blue-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                Fluxo do Dia (E / S)
+              </span>
+              <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 print:hidden">
+                <TrendingUp className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-black text-blue-300 font-mono">{metricasVisitantes.entradasHoje} / {metricasVisitantes.saidasHoje}</span>
+              <span className="text-xs font-bold text-blue-100 px-2 py-0.5 rounded bg-blue-500/25 border border-blue-400/50">
+                Hoje
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 font-medium mt-1">
+              Total de entradas registradas vs saídas dadas baixa
+            </p>
+          </div>
+
+          {/* KPI 3: Auditoria de Anfitriões */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-indigo-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                Vínculo Anfitrião
+              </span>
+              <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 print:hidden">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-black text-indigo-300 font-mono">{metricasVisitantes.pctAuditados}%</span>
+              <span className="text-xs font-bold text-emerald-100 px-2 py-0.5 rounded bg-emerald-500/25 border border-emerald-400/50">
+                Auditados
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 font-medium mt-1">
+              Conformidade: Vínculo formal com colaborador da planta
+            </p>
+          </div>
+
+          {/* KPI 4: Ocupação do Escaninho de Visitantes */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-amber-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                Escaninho Visitantes
+              </span>
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 print:hidden">
+                <CreditCard className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-black text-amber-400 font-mono">{metricasVisitantes.taxaOcupacaoEscaninhoVis}%</span>
+              <span className="text-xs font-bold text-white px-2 py-0.5 rounded bg-slate-700/80 border border-slate-600 font-mono">
+                {metricasVisitantes.totalNoSite} / 40 slots
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 font-medium mt-1">
+              {40 - metricasVisitantes.totalNoSite} crachás disponíveis nas portarias
+            </p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 print-dashboard-shortcuts print:grid print:grid-cols-4 gap-4 print:gap-3 print-avoid-break print:break-inside-avoid">
-          {/* Módulo 1: Ocorrências */}
-          <button
-            type="button"
-            onClick={() => onNavigate && onNavigate('ocorrencias')}
-            className="text-left p-4 rounded-2xl bg-slate-900 hover:bg-slate-800/80 border border-slate-800 hover:border-blue-500/50 transition-all group flex flex-col justify-between cursor-pointer print:border-slate-700 print:break-inside-avoid print-avoid-break"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2.5 rounded-xl bg-blue-600/20 text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-                  Ferramenta 1
-                </span>
+        {/* CONTROLE DE CRACHÁS DE VISITANTES (CARD PERDIDOS VS. RESSARCIDOS) */}
+        <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/20 border border-slate-800 p-4 shadow-lg print:border-slate-700 print:p-3 print-avoid-break">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <DollarSign className="w-4 h-4" />
               </div>
-              <h4 className="font-bold text-sm text-white group-hover:text-blue-400 transition-colors">
-                Relatório de Ocorrências
-              </h4>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Registro de fatos em 17 prédios, tabela de envolvidos, fotos e PDF formatado.
-              </p>
+              <div>
+                <h3 className="font-bold text-xs text-white uppercase tracking-wider">
+                  Controle de Crachás de Visitantes (Perdidos vs. Ressarcidos)
+                </h3>
+                <p className="text-[11px] text-slate-200 font-medium">
+                  Resumo de cartões retidos, extraviados ou ressarcidos de visitantes nas portarias
+                </p>
+              </div>
             </div>
-            <div className="mt-4 pt-2 border-t border-slate-800/60 flex items-center justify-between text-xs text-blue-400 font-semibold print:hidden">
-              <span>Criar Novo RO</span>
-              <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            <div className="flex items-center gap-3 text-xs">
+              <span className="font-bold text-red-300 font-mono">
+                {metricasVisitantes.totalPerdidos} a cobrar (R$ {metricasVisitantes.valorACobrar},00)
+              </span>
+              <span className="text-slate-600">•</span>
+              <span className="font-bold text-emerald-300 font-mono">
+                {metricasVisitantes.totalPagos} pagos (R$ {metricasVisitantes.valorRecuperado},00)
+              </span>
+              {metricasVisitantes.totalIsentos > 0 && (
+                <>
+                  <span className="text-slate-600">•</span>
+                  <span className="font-bold text-blue-200 font-mono">
+                    {metricasVisitantes.totalIsentos} com B.O.
+                  </span>
+                </>
+              )}
             </div>
-          </button>
+          </div>
 
-          {/* Módulo 2: Provisórios */}
-          <button
-            type="button"
-            onClick={() => onNavigate && onNavigate('provisorios')}
-            className="text-left p-4 rounded-2xl bg-slate-900 hover:bg-slate-800/80 border border-slate-800 hover:border-amber-500/50 transition-all group flex flex-col justify-between cursor-pointer print:border-slate-700 print:break-inside-avoid print-avoid-break"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2.5 rounded-xl bg-amber-600/20 text-amber-400 group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                  <CreditCard className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-                  Ferramenta 2
-                </span>
-              </div>
-              <h4 className="font-bold text-sm text-white group-hover:text-amber-400 transition-colors">
-                Credenciais Provisórias
-              </h4>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Controle de saída e devolução (P1/P2) e regra de bloqueio dos 3 acessos.
-              </p>
+          {/* Barra de Progresso Financeiro */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] text-slate-200 font-semibold">
+              <span>Taxa de Regularização / Ressarcimento de Visitantes</span>
+              <span className="font-bold font-mono text-white">{metricasVisitantes.pctRessarcimento}% Regularizados</span>
             </div>
-            <div className="mt-4 pt-2 border-t border-slate-800/60 flex items-center justify-between text-xs text-amber-400 font-semibold print:hidden">
-              <span>Registrar Saída/Baixa</span>
-              <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+              <div 
+                className="h-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-400 rounded-full transition-all duration-500"
+                style={{ width: `${metricasVisitantes.pctRessarcimento}%` }}
+              />
             </div>
-          </button>
+          </div>
+        </div>
 
-          {/* Módulo 3: Visitantes */}
-          <button
-            type="button"
-            onClick={() => onNavigate && onNavigate('visitantes')}
-            className="text-left p-4 rounded-2xl bg-slate-900 hover:bg-slate-800/80 border border-slate-800 hover:border-emerald-500/50 transition-all group flex flex-col justify-between cursor-pointer print:border-slate-700 print:break-inside-avoid print-avoid-break"
-          >
+        {/* GRADES ANALÍTICAS (2x2) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 print:grid print:grid-cols-2 gap-4 print:gap-3 print-avoid-break">
+          {/* Tabela 1: Visitantes no Site Agora */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print-avoid-break">
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2.5 rounded-xl bg-emerald-600/20 text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                  <UserCheck className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-                  Ferramenta 3
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                <h4 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-emerald-400" />
+                  Visitantes Atualmente no Site
+                </h4>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/25 text-emerald-100 border border-emerald-400/50">
+                  {metricasVisitantes.totalNoSite} Presentes
                 </span>
               </div>
-              <h4 className="font-bold text-sm text-white group-hover:text-emerald-400 transition-colors">
-                Controle de Visitantes
-              </h4>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Liberação de acessos com vínculo formal obrigatório ao Anfitrião.
-              </p>
+              <div className="mt-2.5 overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-200">
+                      <th className="py-1.5 px-2">Visitante</th>
+                      <th className="py-1.5 px-2">Empresa</th>
+                      <th className="py-1.5 px-2">Anfitrião</th>
+                      <th className="py-1.5 px-2 text-right">Crachá/Port.</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {metricasVisitantes.noSite.slice(0, 5).map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-1.5 px-2 font-medium text-slate-100 truncate max-w-[120px]">{item.visitante}</td>
+                        <td className="py-1.5 px-2 text-slate-300 truncate max-w-[100px]">{item.empresa}</td>
+                        <td className="py-1.5 px-2 text-indigo-200 font-medium truncate max-w-[110px]">{item.anfitriao || '-'}</td>
+                        <td className="py-1.5 px-2 text-right font-mono text-emerald-300 font-bold">{item.cartao}</td>
+                      </tr>
+                    ))}
+                    {metricasVisitantes.noSite.length === 0 && (
+                      <tr><td colSpan={4} className="py-3 text-center text-slate-300 text-xs font-medium">Nenhum visitante presente no site no momento.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="mt-4 pt-2 border-t border-slate-800/60 flex items-center justify-between text-xs text-emerald-400 font-semibold print:hidden">
-              <span>Liberar Visitante</span>
-              <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </button>
+            <p className="text-[11px] text-slate-300 font-medium mt-2 pt-2 border-t border-slate-800/60">Todos os visitantes devem registrar saída com devolução do crachá</p>
+          </div>
 
-          {/* Módulo 4: Gestão RFID */}
-          <button
-            type="button"
-            onClick={() => onNavigate && onNavigate('rfid')}
-            className="text-left p-4 rounded-2xl bg-slate-900 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/50 transition-all group flex flex-col justify-between cursor-pointer print:border-slate-700 print:break-inside-avoid print-avoid-break"
-          >
+          {/* Tabela 2: Auditoria de Vínculos de Anfitriões */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print-avoid-break">
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2.5 rounded-xl bg-indigo-600/20 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                  <Radio className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-                  Ferramenta 4
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                <h4 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                  <Building className="w-4 h-4 text-blue-400" />
+                  Auditoria de Vínculos de Anfitriões
+                </h4>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/25 text-blue-100 border border-blue-400/50">
+                  Ranking de Visitas
                 </span>
               </div>
-              <h4 className="font-bold text-sm text-white group-hover:text-indigo-400 transition-colors">
-                Gestão Geral RFID
-              </h4>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Inventário de cartões rotativos (0-350) e fixos com métricas de perdas e estoque.
-              </p>
+              <div className="mt-2.5 overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-200">
+                      <th className="py-1.5 px-2">Anfitrião Responsável</th>
+                      <th className="py-1.5 px-2">Empresa</th>
+                      <th className="py-1.5 px-2 text-right">Total Visitas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {metricasVisitantes.listaAnfitrioes.slice(0, 5).map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-1.5 px-2 font-medium text-slate-100 truncate max-w-[130px]">{item.anfitriao}</td>
+                        <td className="py-1.5 px-2 text-slate-300 truncate max-w-[110px]">{item.empresa}</td>
+                        <td className="py-1.5 px-2 text-right">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-blue-500/25 text-blue-100 border border-blue-400/50">
+                            {item.total} {item.total === 1 ? 'visita' : 'visitas'} {item.noSite > 0 ? `(${item.noSite} no site)` : ''}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {metricasVisitantes.listaAnfitrioes.length === 0 && (
+                      <tr><td colSpan={3} className="py-3 text-center text-slate-300 text-xs font-medium">Nenhum anfitrião registrado no período.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="mt-4 pt-2 border-t border-slate-800/60 flex items-center justify-between text-xs text-indigo-400 font-semibold print:hidden">
-              <span>Acessar Inventário</span>
-              <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            <p className="text-[11px] text-slate-300 font-medium mt-2 pt-2 border-t border-slate-800/60">Vínculo auditado para conformidade com normas de acesso</p>
+          </div>
+
+          {/* Tabela 3: Crachás de Visitantes Retidos / Extraviados com Quitação */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print-avoid-break">
+            <div>
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                <h4 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400" />
+                  Crachás de Visitantes Extraviados
+                </h4>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/25 text-red-100 border border-red-400/50">
+                  {metricasVisitantes.totalPerdidos} a Cobrar
+                </span>
+              </div>
+              <div className="mt-2.5 overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-200">
+                      <th className="py-1.5 px-2">Visitante</th>
+                      <th className="py-1.5 px-2">Crachá</th>
+                      <th className="py-1.5 px-2">Empresa</th>
+                      <th className="py-1.5 px-2 text-right print:hidden">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {metricasVisitantes.perdidos.slice(0, 5).map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-1.5 px-2 font-medium text-slate-100 truncate max-w-[120px]">{item.visitante}</td>
+                        <td className="py-1.5 px-2 font-mono text-amber-300 font-bold">{item.cartao}</td>
+                        <td className="py-1.5 px-2 text-slate-300 truncate max-w-[100px]">{item.empresa}</td>
+                        <td className="py-1.5 px-2 text-right print:hidden">
+                          <button
+                            type="button"
+                            onClick={() => handleQuitarVisitante(item.id)}
+                            className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
+                            title="Marcar como Pago / Quitado"
+                          >
+                            À Pagar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {metricasVisitantes.perdidos.length === 0 && (
+                      <tr><td colSpan={4} className="py-3 text-center text-slate-300 text-xs font-medium">Nenhum crachá de visitante extraviado pendente.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </button>
+            <p className="text-[11px] text-slate-300 font-medium mt-2 pt-2 border-t border-slate-800/60">Cobrança e ressarcimento de 2ª via: R$ 30,00</p>
+          </div>
+
+          {/* Painel 4: Fluxo de Portarias Visitantes (P1 vs P2) */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print-avoid-break">
+            <div>
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                <h4 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                  <Building className="w-4 h-4 text-emerald-400" />
+                  Fluxo e Escaninho Visitantes
+                </h4>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/25 text-emerald-100 border border-emerald-400/40">
+                  40 Slots Totais
+                </span>
+              </div>
+              <div className="mt-3 space-y-3">
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="font-bold text-emerald-300">Portaria 1 (P1) • Crachás 01 a 20</span>
+                    <span className="font-mono text-white font-bold">{metricasVisitantes.noSiteP1} / 20 em uso</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, (metricasVisitantes.noSiteP1 / 20) * 100)}%` }}></div>
+                  </div>
+                  <p className="text-[11px] text-slate-200 font-medium mt-1">{20 - metricasVisitantes.noSiteP1} crachás disponíveis na P1</p>
+                </div>
+
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="font-bold text-indigo-300">Portaria 2 (P2) • Crachás 21 a 40</span>
+                    <span className="font-mono text-white font-bold">{metricasVisitantes.noSiteP2} / 20 em uso</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.min(100, (metricasVisitantes.noSiteP2 / 20) * 100)}%` }}></div>
+                  </div>
+                  <p className="text-[11px] text-slate-200 font-medium mt-1">{20 - metricasVisitantes.noSiteP2} crachás disponíveis na P2</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-300 font-medium mt-2 pt-2 border-t border-slate-800/60">Capacidade física de recepção das portarias monitorada</p>
+          </div>
+        </div>
+
+        {/* Rodapé Oficial da Página 3 */}
+        <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 font-medium">
+          <span>CCO Security Suite • Central de Controle Operacional • Módulo Visitantes</span>
+          <span className="font-bold text-slate-300">{abaAtiva === 'todas' ? 'Página 3 de 4' : 'Página 1 de 1'}</span>
         </div>
       </div>
 
-      {/* Rodapé Global com Assinatura e Versão */}
-      <footer className="pt-6 pb-2 border-t border-slate-800/80 text-center text-xs text-slate-500 print:text-[9.5px] print:pt-4 print:pb-0 print:border-slate-700 print-avoid-break">
+    {/* =========================================================================
+        DASHBOARD 4: SAÍDA DE CARTÃO RFID (CONTABILIDADE E FINANCEIRO) (PÁGINA 4 DEDICADA)
+       ========================================================================= */}
+    <div className={`dashboard-page-landscape dashboard-page-4 ${abaAtiva === 'd4' ? 'dashboard-page-single' : ''} w-full max-w-full p-6 print:px-6 print:py-1 bg-slate-950/30 rounded-2xl border border-slate-800/80 print:border-none print:bg-transparent space-y-6 print:space-y-1 mb-8 print:mb-0 ${
+      abaAtiva === 'todas' || abaAtiva === 'd4' ? 'block' : 'hidden'
+    }`}>
+      {/* Cabeçalho da Página 4 */}
+      <div className="border-b border-slate-800 pb-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shrink-0">
+            <Radio className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-indigo-500/25 text-indigo-100 border border-indigo-400/40 shrink-0">
+                {abaAtiva === 'todas' ? 'Página 4 de 4' : 'Módulo 4 • RFID & Contabilidade'}
+              </span>
+              <span className="text-xs font-semibold text-slate-400">CCO Security Suite</span>
+            </div>
+            <h2 className="text-base sm:text-lg font-black text-white tracking-tight truncate">
+              DASHBOARD 4: SAÍDA DE CARTÃO RFID (CONTABILIDADE & FINANCEIRO)
+            </h2>
+          </div>
+        </div>
+
+        {/* Informações do Operador - Canto Superior Direito Compacto e Limpo */}
+        <div className="header-operador-compacto flex flex-col items-end text-right shrink-0">
+          <div className="flex items-center gap-2 text-xs font-bold text-white">
+            <span className="text-slate-400 font-normal">Operador:</span>
+            <span className="font-mono text-slate-100 uppercase">{operadorAtivo}</span>
+            {turnoAtivo && (
+              <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-mono font-semibold">
+                {turnoAtivo}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium mt-0.5">
+            <span>{getPeriodoLabel()}</span>
+            <span className="text-slate-600">•</span>
+            <span>Emissão: {new Date().toLocaleDateString('pt-BR')}</span>
+          </div>
+        </div>
+      </div>
+
+        {/* 4 CARDS DE KPIS DO DASHBOARD 4 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 print-dashboard-kpis print:grid print:grid-cols-4 gap-4 print:gap-3 print-avoid-break print:break-inside-avoid">
+          {/* KPI 1: Cartões Rotativos de Serviços */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-indigo-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                Rotativos de Serviços
+              </span>
+              <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 print:hidden">
+                <Radio className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-black text-indigo-300 font-mono">
+                {metricasRfidContabilidade.rotativosAtivos} / {metricasRfidContabilidade.rotativosTotal}
+              </span>
+              <span className="text-xs font-bold text-emerald-100 px-2 py-0.5 rounded bg-emerald-500/25 border border-emerald-400/50 shadow-sm">
+                {metricasRfidContabilidade.rotativosDisponiveis} Disp.
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 font-medium mt-1">
+              Intervalo 001 a 350 • {metricasRfidContabilidade.rotativosPerdidos} extraviados
+            </p>
+          </div>
+
+          {/* KPI 2: Fixos Nominais */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-blue-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                Fixos Nominais
+              </span>
+              <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 print:hidden">
+                <CreditCard className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-black text-blue-300 font-mono">
+                {metricasRfidContabilidade.fixosAtivos} / {metricasRfidContabilidade.fixosTotal}
+              </span>
+              <span className="text-xs font-bold text-blue-100 px-2 py-0.5 rounded bg-blue-500/25 border border-blue-400/50 shadow-sm font-mono">
+                {metricasRfidContabilidade.fixosDisponiveis} Disp.
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 font-medium mt-1">
+              Credenciais de colaboradores fixos • {metricasRfidContabilidade.fixosPerdidos} extraviados
+            </p>
+          </div>
+
+          {/* KPI 3: Total Geral a Cobrar (Multi-Módulos) */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-red-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                Total a Cobrar (Geral)
+              </span>
+              <div className="p-2 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 print:hidden">
+                <AlertCircle className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-black text-red-400 font-mono">
+                R$ {metricasRfidContabilidade.totalValorACobrar},00
+              </span>
+              <span className="text-xs font-bold text-red-100 px-2 py-0.5 rounded bg-red-500/25 border border-red-400/50 shadow-sm font-mono">
+                {metricasRfidContabilidade.totalItensACobrar} Itens
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 font-medium mt-1">
+              Consolidação de 2ª via: RFID, Visitantes e Provisórios
+            </p>
+          </div>
+
+          {/* KPI 4: Total Geral Recuperado / Quitado (Multi-Módulos) */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg relative overflow-hidden group hover:border-emerald-500/50 transition-all print:border-slate-700 print:p-3.5 print:break-inside-avoid print-avoid-break">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                Total Recuperado (Geral)
+              </span>
+              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 print:hidden">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-black text-emerald-400 font-mono">
+                R$ {metricasRfidContabilidade.totalValorRecuperado},00
+              </span>
+              <span className="text-xs font-bold text-emerald-100 px-2 py-0.5 rounded bg-emerald-500/25 border border-emerald-400/50 shadow-sm font-mono">
+                {metricasRfidContabilidade.totalItensPagos} Pagos
+              </span>
+            </div>
+            <p className="text-xs text-slate-200 font-medium mt-1">
+              {metricasRfidContabilidade.totalIsentosBO} isenções documentadas por Boletim de Ocorrência
+            </p>
+          </div>
+        </div>
+
+        {/* PAINEL CENTRALIZADO DE CONTABILIDADE / COBRANÇA */}
+        <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/30 border border-slate-800 p-5 shadow-lg print:border-slate-700 print:p-3.5 print-avoid-break">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-indigo-500/25 text-indigo-100 font-extrabold text-[10px] uppercase border border-indigo-400/40">
+                  Consolidado Multi-Módulos
+                </span>
+                <span className="text-xs font-semibold text-slate-200">Auditoria Financeira CCO</span>
+              </div>
+              <h3 className="font-extrabold text-base text-white mt-1">
+                Painel Centralizado de Cobrança de 2ª Via por Extravio
+              </h3>
+              <p className="text-xs text-slate-200 font-medium">
+                Integração contábil unificada das pendências dos módulos RFID, Visitantes e Provisórios. Taxa fixa corporativa: R$ 30,00 por credencial.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setModalCobrancaOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/25 hover:bg-amber-500/35 text-amber-100 border border-amber-400/50 text-xs font-bold transition-all shadow-md cursor-pointer print:hidden"
+              >
+                <DollarSign className="w-4 h-4 text-amber-400" />
+                <span>Relatório de Faturamento por Empresa</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Barra de Eficácia Financeira / Recuperação */}
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+            <div className="md:col-span-3 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-200">Índice Geral de Eficácia Financeira (Ressarcimentos Confirmados)</span>
+                <span className="font-mono font-bold text-emerald-300">{metricasRfidContabilidade.taxaEficacia}% Recuperados</span>
+              </div>
+              <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                <div 
+                  className="h-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-400 rounded-full transition-all duration-500" 
+                  style={{ width: `${metricasRfidContabilidade.taxaEficacia}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-slate-300 font-medium">
+                <span>Total a Cobrar: <strong className="text-red-300 font-mono">R$ {metricasRfidContabilidade.totalValorACobrar},00</strong></span>
+                <span>Total Recuperado: <strong className="text-emerald-300 font-mono">R$ {metricasRfidContabilidade.totalValorRecuperado},00</strong></span>
+                <span>Total Isenções (B.O.): <strong className="text-blue-300 font-mono">{metricasRfidContabilidade.totalIsentosBO}</strong></span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-center">
+              <span className="text-[10px] uppercase font-bold text-slate-200">Total Auditado</span>
+              <p className="text-base font-mono font-black text-white mt-0.5">
+                R$ {(metricasRfidContabilidade.totalValorACobrar + metricasRfidContabilidade.totalValorRecuperado)},00
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* TABELAS EXECUTIVAS DO DASHBOARD 4 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 print:grid print:grid-cols-2 gap-4 print:gap-3 print-avoid-break">
+          {/* Tabela 1: Resumo de Cobrança Consolidada por Empresa */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print-avoid-break">
+            <div>
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                <h4 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                  <Building className="w-4 h-4 text-indigo-400" />
+                  Cobrança Consolidada por Empresa Contratada
+                </h4>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/25 text-indigo-100 border border-indigo-400/50 shadow-sm">
+                  {metricasRfidContabilidade.resumoCobrancaEmpresas.length} Empresas
+                </span>
+              </div>
+              <div className="mt-2.5 overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-200">
+                      <th className="py-1.5 px-2">Empresa Contratada</th>
+                      <th className="py-1.5 px-2">Origens</th>
+                      <th className="py-1.5 px-2 text-right">Qtd Pendente</th>
+                      <th className="py-1.5 px-2 text-right">Total (R$)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {metricasRfidContabilidade.resumoCobrancaEmpresas.slice(0, 6).map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-1.5 px-2 font-semibold text-slate-100 truncate max-w-[130px]">{item.empresa}</td>
+                        <td className="py-1.5 px-2 text-[10px] text-slate-200">
+                          {item.porModulo.RFID > 0 && <span className="mr-1 text-indigo-200 font-mono font-bold">RFID:{item.porModulo.RFID}</span>}
+                          {item.porModulo.PROVISÓRIO > 0 && <span className="mr-1 text-amber-200 font-mono font-bold">PRV:{item.porModulo.PROVISÓRIO}</span>}
+                          {item.porModulo.VISITANTE > 0 && <span className="text-emerald-200 font-mono font-bold">VIS:{item.porModulo.VISITANTE}</span>}
+                        </td>
+                        <td className="py-1.5 px-2 text-right font-mono text-amber-300 font-bold">{item.totalItens}</td>
+                        <td className="py-1.5 px-2 text-right font-mono text-red-300 font-bold">R$ {item.valorTotal},00</td>
+                      </tr>
+                    ))}
+                    {metricasRfidContabilidade.resumoCobrancaEmpresas.length === 0 && (
+                      <tr><td colSpan={4} className="py-3 text-center text-slate-300 text-xs font-medium">Nenhuma pendência financeira ativa por empresa.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-200 font-medium mt-2 pt-2 border-t border-slate-800/60">Cruzamento de todas as ocorrências de extravio em aberto</p>
+          </div>
+
+          {/* Tabela 2: Relação Centralizada de Pendências de 2ª Via com Quitação Imediata */}
+          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 shadow-lg flex flex-col justify-between print:border-slate-700 print:p-3 print-avoid-break">
+            <div>
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                <h4 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-red-400" />
+                  Central Geral de Pendências de 2ª Via (Todos os Módulos)
+                </h4>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/25 text-red-100 border border-red-400/50 shadow-sm">
+                  {metricasRfidContabilidade.totalItensACobrar} a Quitar
+                </span>
+              </div>
+              <div className="mt-2.5 overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] uppercase font-bold text-slate-200">
+                      <th className="py-1.5 px-2">Origem</th>
+                      <th className="py-1.5 px-2">Colaborador / Cartão</th>
+                      <th className="py-1.5 px-2">Empresa</th>
+                      <th className="py-1.5 px-2 text-right print:hidden">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {metricasRfidContabilidade.todasPendencias.slice(0, 6).map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-1.5 px-2">
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${
+                            item.modulo === 'RFID'
+                              ? 'bg-indigo-500/25 text-indigo-100 border border-indigo-400/50 font-black'
+                              : item.modulo === 'PROVISÓRIO'
+                              ? 'bg-amber-500/25 text-amber-100 border border-amber-400/50 font-black'
+                              : 'bg-emerald-500/25 text-emerald-100 border border-emerald-400/50 font-black'
+                          }`}>
+                            {item.modulo}
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2 font-medium text-slate-100">
+                          <div className="truncate max-w-[130px]" title={item.colaborador}>{item.colaborador}</div>
+                          <div className="text-[10px] font-mono text-slate-200">{item.cartao}</div>
+                        </td>
+                        <td className="py-1.5 px-2 text-slate-200 truncate max-w-[100px]">{item.empresa}</td>
+                        <td className="py-1.5 px-2 text-right print:hidden">
+                          <button
+                            type="button"
+                            onClick={() => handleQuitarItemConsolidado(item)}
+                            className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
+                            title="Marcar como Pago / Quitado"
+                          >
+                            À Pagar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {metricasRfidContabilidade.todasPendencias.length === 0 && (
+                      <tr><td colSpan={4} className="py-3 text-center text-slate-300 text-xs font-medium">Nenhuma pendência financeira de 2ª via ativa.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-200 font-medium mt-2 pt-2 border-t border-slate-800/60">A quitação atualiza a base do módulo original e o inventário</p>
+          </div>
+        </div>
+
+        {/* Rodapé Oficial da Página 4 */}
+        <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-300 font-medium">
+          <span>CCO Security Suite • Central de Controle Operacional • Gestão RFID & Contabilidade</span>
+          <span className="font-bold text-slate-100">{abaAtiva === 'todas' ? 'Página 4 de 4' : 'Página 1 de 1'}</span>
+        </div>
+      </div>
+      </div>
+
+      {/* RELATÓRIO EXECUTIVO OFICIAL PARA IMPRESSÃO E EXPORTAÇÃO EM PDF (1 PÁGINA POR MÓDULO • FORMATO PAISAGEM) */}
+      <RelatorioExecutivoPrint
+        abaAtiva={abaAtiva}
+        operadorAtivo={operadorAtivo}
+        turnoAtivo={turnoAtivo}
+        periodoNome={getPeriodoLabel()}
+        filtros={{
+          periodo,
+          dataInicio,
+          dataFim,
+          predio: filtroPredio,
+          area: filtroArea,
+          topico: filtroTopico,
+          empresa: filtroEmpresa
+        }}
+        dados={{
+          // Módulo 1: Ocorrências
+          totalOcorrencias,
+          criticas,
+          altas,
+          medias,
+          baixas,
+          pctCritica,
+          pctAlta,
+          pctMedia,
+          pctBaixa,
+          tempoMedioResposta,
+          comFotosFormalizadas,
+          ocorrenciasPorPredio,
+          ocorrenciasPorTopico,
+          produtividadeOperadores: tabelaProdutividade,
+          ultimasOcorrencias,
+
+          // Módulo 2: Provisórios
+          metricasProvisorios,
+          cautelasEmCirculacao: metricasProvisorios.cautelasAtivas || [],
+          tabelaReincidentes,
+          extraviosProvisorios: metricasProvisorios.perdidos || [],
+
+          // Módulo 3: Visitantes
+          metricasVisitantes,
+          visitantesNoSite: metricasVisitantes.noSite || [],
+          rankingAnfitrioes: metricasVisitantes.listaAnfitrioes || [],
+          extraviosVisitantes: metricasVisitantes.perdidos || [],
+
+          // Módulo 4: RFID & Contabilidade
+          metricasRfidContabilidade,
+          resumoCobrancaPorEmpresa: metricasRfidContabilidade.resumoCobrancaEmpresas || [],
+          tabelaInadimplentes
+        }}
+      />
+
+      {/* Rodapé Global com Assinatura e Versão (OCULTO NA IMPRESSÃO) */}
+      <footer className="pt-6 pb-2 border-t border-slate-800/80 text-center text-xs text-slate-500 no-print print:hidden">
         <p className="font-medium">
           Desenvolvido por <span className="text-slate-400 font-semibold">© Yago Marinho</span> - TecPrimus Soluções Tecnológicas @ 2026 | Versão 1.0
         </p>
       </footer>
+
+      {/* Modal Relatório de Cobrança Financeira de 2ª Via */}
+      <RelatorioCobrancaModal
+        isOpen={modalCobrancaOpen}
+        onClose={() => setModalCobrancaOpen(false)}
+        inventario={rfidBase}
+        onMarcarPago={(card) => {
+          if (card?.id) {
+            transicionarStatusCartao(
+              rfidBase,
+              card.id,
+              'PAGO',
+              'Ressarcimento de 2ª via confirmado via Dashboard Executivo'
+            );
+            showToast(`Credencial ${card.codigoRfid || card.numeroRotativo || ''} marcada como PAGO!`, 'success');
+          }
+        }}
+      />
     </div>
   );
 }

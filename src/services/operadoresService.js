@@ -2,44 +2,34 @@ import * as XLSX from 'xlsx';
 
 const STORAGE_KEY = 'cco_operadores_base';
 
-export const OPERADORES_INICIAIS = [
-  {
-    id: 'op-1',
-    nome: 'Op. Operador 01',
-    matricula: 'CCO-1001',
-    cargo: 'Operador CCO',
-    turno: '12x36 Diurno',
-    status: 'Ativo',
-    observacoes: 'Operador titular da mesa de monitoramento 01',
-    dataCadastro: '2026-01-01'
-  },
-  {
-    id: 'op-2',
-    nome: 'Op. Operador 02',
-    matricula: 'CCO-1002',
-    cargo: 'Operador CCO Líder',
-    turno: '12x36 Diurno',
-    status: 'Ativo',
-    observacoes: 'Líder operacional e coordenação de turno CCO',
-    dataCadastro: '2026-01-01'
-  }
-];
+export const OPERADORES_INICIAIS = [];
 
 /**
  * Carrega a lista completa de operadores do backend local com fallback ao localStorage
  */
 export async function carregarOperadores() {
   try {
-    const res = await fetch('/api/operadores');
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 3500) : null;
+
+    const res = await fetch('/api/operadores', {
+      signal: controller ? controller.signal : undefined
+    });
+    if (timeoutId) clearTimeout(timeoutId);
+
     if (res.ok) {
-      const dados = await res.json();
-      if (Array.isArray(dados)) {
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
-        } catch (e) {
-          // ignore quota
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const dados = await res.json();
+        if (Array.isArray(dados)) {
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
+          } catch (e) {}
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('cco_operadores_changed', { detail: dados }));
+          }
+          return dados;
         }
-        return dados;
       }
     }
   } catch (err) {
@@ -59,12 +49,7 @@ export async function carregarOperadores() {
     console.error('Erro ao ler operadores do localStorage:', e);
   }
 
-  // Fallback padrão inicial
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(OPERADORES_INICIAIS));
-  } catch (e) {}
-
-  return OPERADORES_INICIAIS;
+  return [];
 }
 
 /**
@@ -80,58 +65,77 @@ export function obterOperadoresCache() {
       }
     }
   } catch (e) {}
-  return OPERADORES_INICIAIS;
+  return [];
 }
 
 /**
- * Retorna apenas os nomes dos operadores com status "Ativo" (para uso em <select> / dropdowns)
+ * Retorna os objetos dos operadores/vigilantes com status "Ativo"
+ */
+export function obterOperadoresAtivos() {
+  const lista = obterOperadoresCache();
+  const listaSegura = Array.isArray(lista) ? lista : [];
+  return listaSegura.filter(op => op && op.status !== 'Inativo');
+}
+
+/**
+ * Retorna apenas os nomes dos operadores/vigilantes com status "Ativo" (para uso em <select> / dropdowns)
  */
 export function obterNomesOperadoresAtivos() {
-  const lista = obterOperadoresCache();
-  const ativos = lista.filter(op => op.status !== 'Inativo');
-  if (ativos.length === 0) {
-    return lista.map(op => op.nome);
-  }
-  return ativos.map(op => op.nome);
+  const ativos = obterOperadoresAtivos();
+  return Array.isArray(ativos) ? ativos.map(op => op?.nome).filter(Boolean) : [];
 }
 
 /**
- * Salva a lista de operadores tanto na API do sistema (JSON + Excel) quanto no localStorage
+ * Salva a lista de operadores de forma persistente e síncrona tanto na API quanto em localStorage
  */
 export async function salvarOperadores(novaLista) {
   if (!Array.isArray(novaLista)) {
     throw new Error('Lista de operadores inválida.');
   }
 
-  // Salva no localStorage imediatamente
+  // 1. Salva no localStorage imediatamente
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(novaLista));
   } catch (e) {
     console.error('Erro ao salvar operadores no localStorage:', e);
   }
 
-  // Dispara evento reativo customizado para todos os componentes abertos
+  // 2. Dispara evento reativo customizado com os dados atualizados de imediato
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('cco_operadores_changed', { detail: novaLista }));
   }
 
-  // Envia para a API local salvar em data/operadores.json e operadores.xlsx
+  // 3. Envia para a API local salvar em data/operadores.json e operadores.xlsx
+  let salvouBackend = false;
   try {
-    const res = await fetch('/api/salvar-operadores', {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 4000) : null;
+
+    let res = await fetch('/api/salvar-operadores', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(novaLista)
+      body: JSON.stringify(novaLista),
+      signal: controller ? controller.signal : undefined
     });
+    if (timeoutId) clearTimeout(timeoutId);
 
-    if (res.ok) {
-      const json = await res.json();
-      return json;
+    if (res.status === 404) {
+      res = await fetch('/api/operadores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(novaLista)
+      });
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
+      salvouBackend = true;
     }
   } catch (err) {
-    console.warn('Aviso: Erro ao salvar operadores via API local (salvo em localStorage):', err);
+    console.warn('Aviso: Erro ao salvar operadores via API local (salvo com segurança em cache local):', err);
   }
 
-  return { success: true, savedPaths: ['localStorage'] };
+  return { success: true, salvouBackend, total: novaLista.length };
 }
 
 /**
@@ -140,7 +144,6 @@ export async function salvarOperadores(novaLista) {
 export async function adicionarOperador(dados) {
   const listaAtual = await carregarOperadores();
   
-  // Formata o nome se necessário (garante padrão ou aceita direto)
   const nomeLimpo = (dados.nome || '').trim();
   const matriculaLimpa = (dados.matricula || '').trim();
 
@@ -212,7 +215,10 @@ export async function alternarStatusOperador(id) {
   if (!operador) return listaAtual;
 
   const novoStatus = operador.status === 'Ativo' ? 'Inativo' : 'Ativo';
-  return await editarOperador(id, { status: novoStatus });
+  operador.status = novoStatus;
+  operador.dataAtualizacao = new Date().toISOString().split('T')[0];
+  await salvarOperadores(listaAtual);
+  return operador;
 }
 
 /**
