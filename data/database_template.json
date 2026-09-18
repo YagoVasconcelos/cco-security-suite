@@ -1,6 +1,6 @@
 {
   "versao": "1.2.0",
-  "dataGeracao": "2026-09-18T14:58:53.648Z",
+  "dataGeracao": "2026-09-18T16:33:17.310Z",
   "descricao": "Base Limpa de Fábrica (Clean State) - CCO Security Suite Rev 1.2",
   "ocorrencias": [],
   "provisorios": [],
@@ -493,9 +493,9 @@
     "algoritmo": "PBKDF2-HMAC-SHA512",
     "iteracoes": 100000,
     "digest": "sha512",
-    "salt": "7b288735f6745a3060e15d65b95b3bdfb2828a1a48fb21766df23409e07f1960",
-    "hash": "dda537d6bc37ed1dbf00e028e086cdc90940482bdb48b932d549a8df65d60b32333cb921d245d59402fa5511c3679ecb6ee941125cf1b030489ecbfa0bb30bac",
-    "dataAtualizacao": "2026-09-17T19:31:59.964Z",
+    "salt": "28200795cfc6b73f7f4762a3951a372cf6f27ed5b3892f90738b9dee37baa538",
+    "hash": "354061c479c65ebb28b9b5d6720f87f2a3a2ddb64891ca4f943d7bdb2dd683b5251fcabc0319b91022340e23515ad4012404a2b04aa7d53d4344ad382c75e8c3",
+    "dataAtualizacao": "2026-09-18T16:32:05.458Z",
     "protegido": true
   }
 }
