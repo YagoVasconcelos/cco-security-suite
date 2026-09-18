@@ -1,19 +1,428 @@
 {
-  "_comentario": "CCO Security Suite v1.0 - Modelo Padrão de Banco de Dados para Inicialização e GitHub",
-  "versao": "1.0",
-  "dataCriacao": "2026-01-01T00:00:00.000Z",
-  "seguranca": {
-    "senhaMestra": "admin123",
-    "dataAtualizacao": "2026-01-01T00:00:00.000Z"
-  },
-  "responsaveis": {
-    "gerenteSite": "Gerência de Operações",
-    "coordenacao": "Coordenação de Segurança Corporativa",
-    "fiscalContrato": "Fiscalização de Contrato",
-    "caminhoRede": "MAPA DE CALOR/2026/09.SETEMBRO",
-    "atualizadoEm": "2026-01-01T00:00:00.000Z"
-  },
-  "operadores": [],
+  "versao": "1.2.0",
+  "dataGeracao": "2026-09-18T13:47:40.942Z",
+  "descricao": "Base Limpa de Fábrica (Clean State) - CCO Security Suite Rev 1.2",
+  "ocorrencias": [],
+  "provisorios": [],
+  "visitantes": [],
+  "rfid": [],
+  "operadores": [
+    {
+      "id": "op-01",
+      "nome": "Central de Segurança",
+      "matricula": "CCO-2535",
+      "cargo": "Tec. Segurança Eletrônica",
+      "turno": "Comercial Adm",
+      "status": "Ativo",
+      "observacoes": "Administrador e Responsável Técnico CCO",
+      "dataCadastro": "2026-01-01",
+      "dataAtualizacao": "2026-09-17"
+    }
+  ],
+  "vigilantes": [
+    {
+      "id": "vig-01",
+      "nome": "Rosana Cruz",
+      "matricula": "VIG-2001",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-02",
+      "nome": "João Paulo",
+      "matricula": "VIG-2002",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-03",
+      "nome": "Ana Célia",
+      "matricula": "VIG-2003",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-04",
+      "nome": "Jéssica Estumano",
+      "matricula": "VIG-2004",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01",
+      "dataAtualizacao": "2026-09-17"
+    },
+    {
+      "id": "vig-05",
+      "nome": "Elaine Moura",
+      "matricula": "VIG-2005",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-07",
+      "nome": "Meggy Merelin",
+      "matricula": "VIG-2007",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01",
+      "dataAtualizacao": "2026-09-17"
+    },
+    {
+      "id": "vig-08",
+      "nome": "Marcilene Silva",
+      "matricula": "VIG-2008",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-09",
+      "nome": "Verusca Bezerra",
+      "matricula": "VIG-2009",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-10",
+      "nome": "Eliezer Bulhosa",
+      "matricula": "VIG-2010",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01",
+      "dataAtualizacao": "2026-09-17"
+    },
+    {
+      "id": "vig-11",
+      "nome": "Victor Rocha",
+      "matricula": "VIG-2011",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-12",
+      "nome": "Josimar Souza",
+      "matricula": "VIG-2012",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-14",
+      "nome": "David Santos",
+      "matricula": "VIG-2014",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-15",
+      "nome": "João Natas",
+      "matricula": "VIG-2015",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-16",
+      "nome": "Helder Miranda",
+      "matricula": "VIG-2016",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-17",
+      "nome": "Rafael Bruno",
+      "matricula": "VIG-2017",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-21",
+      "nome": "Nayara Pena",
+      "matricula": "VIG-2021",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-22",
+      "nome": "Mauro Silva",
+      "matricula": "VIG-2022",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-23",
+      "nome": "Wilson Leão",
+      "matricula": "VIG-2023",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-24",
+      "nome": "Silva",
+      "matricula": "VIG-2024",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-25",
+      "nome": "Johannes",
+      "matricula": "VIG-2025",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-26",
+      "nome": "Léo Jaime",
+      "matricula": "VIG-2026",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-27",
+      "nome": "Zeca Lima",
+      "matricula": "VIG-2027",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-28",
+      "nome": "Rafaela Mikaelly",
+      "matricula": "VIG-2028",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01",
+      "dataAtualizacao": "2026-09-17"
+    },
+    {
+      "id": "vig-29",
+      "nome": "Rangel",
+      "matricula": "VIG-2029",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-30",
+      "nome": "Jackson Douglas",
+      "matricula": "VIG-2030",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01",
+      "dataAtualizacao": "2026-09-17"
+    },
+    {
+      "id": "vig-31",
+      "nome": "Reimundo Benjamin",
+      "matricula": "VIG-2031",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01",
+      "dataAtualizacao": "2026-09-17"
+    },
+    {
+      "id": "vig-32",
+      "nome": "Casemiro",
+      "matricula": "VIG-2032",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-34",
+      "nome": "Elielson Lagoia",
+      "matricula": "VIG-2034",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-36",
+      "nome": "Ana Margarida",
+      "matricula": "VIG-2036",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-37",
+      "nome": "Zadiel Ferreira",
+      "matricula": "VIG-2037",
+      "posto": "Portaria 1",
+      "cargo": "Vigilante Patrimonial",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Controle de Acesso P1",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-39",
+      "nome": "Vigilante Portaria 2",
+      "matricula": "VIG-2039",
+      "posto": "Portaria 2",
+      "cargo": "Vigilante Portaria 2",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Posto de controle de acesso de serviços / carga (P2)",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "vig-40",
+      "nome": "Vigilante Ronda",
+      "matricula": "VIG-2040",
+      "posto": "Caldeira",
+      "cargo": "Vigilante Ronda",
+      "turno": "12x36 Diurno",
+      "status": "Ativo",
+      "observacoes": "Ronda perimetral e fiscalização móvel",
+      "dataCadastro": "2026-01-01"
+    }
+  ],
+  "cargos": [
+    {
+      "id": "cargo-1",
+      "nome": "Op. Central de Segurança",
+      "tipo": "OPERADOR",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "cargo-4",
+      "nome": "Tec. em SDAI",
+      "tipo": "OPERADOR",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "cargo-5",
+      "nome": "Vigilante Portaria 1",
+      "tipo": "VIGILANTE",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "cargo-6",
+      "nome": "Vigilante Portaria 2",
+      "tipo": "VIGILANTE",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "cargo-8",
+      "nome": "Vigilante Caldeira",
+      "tipo": "VIGILANTE",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "cargo-1789482142976",
+      "nome": "Coordenador Patrimonial",
+      "tipo": "OPERADOR",
+      "status": "Ativo",
+      "dataCadastro": "2026-09-15"
+    }
+  ],
   "turnos": [
     {
       "id": "turno-1",
@@ -32,20 +441,61 @@
     {
       "id": "turno-3",
       "nome": "Administrativo",
-      "descricao": "Horário comercial de segunda a sexta-feira (08:00 às 17:00)",
+      "descricao": "Horário comercial de segunda a sexta-feira (07:15 às 16:48 / 07:15 às 1448)",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01",
+      "dataAtualizacao": "2026-09-15"
+    }
+  ],
+  "observacoes": [
+    {
+      "id": "obs-1",
+      "nome": "ESQUECEU",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "obs-2",
+      "nome": "PERDEU",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "obs-3",
+      "nome": "COM DEFEITO",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01"
+    },
+    {
+      "id": "obs-4",
+      "nome": "FURTADO B.O",
+      "status": "Ativo",
+      "dataCadastro": "2026-01-01",
+      "descricao": "",
+      "dataAtualizacao": "2026-09-17"
+    },
+    {
+      "id": "obs-5",
+      "nome": "OUTROS",
       "status": "Ativo",
       "dataCadastro": "2026-01-01"
     }
   ],
-  "observacoes": [
-    { "id": "obs-1", "nome": "ESQUECEU", "status": "Ativo", "dataCadastro": "2026-01-01" },
-    { "id": "obs-2", "nome": "PERDEU", "status": "Ativo", "dataCadastro": "2026-01-01" },
-    { "id": "obs-3", "nome": "COM DEFEITO", "status": "Ativo", "dataCadastro": "2026-01-01" },
-    { "id": "obs-4", "nome": "RETIDO", "status": "Ativo", "dataCadastro": "2026-01-01" },
-    { "id": "obs-5", "nome": "OUTROS", "status": "Ativo", "dataCadastro": "2026-01-01" }
-  ],
-  "ocorrencias": [],
-  "provisorios": [],
-  "visitantes": [],
-  "rfid": []
+  "responsaveis": {
+    "gerenteSite": "Alcimara Andria Araujo da Silva - Gerente, Natura",
+    "coordenacao": "Ordiley batista da Silva - Coordenação de Segurança Corporativa, Servis.",
+    "fiscalContrato": "Roberta Samara da Silva Santos - Coordenadora, Natura",
+    "caminhoRede": "MAPA DE CALOR/2026/09.SETEMBRO",
+    "atualizadoEm": "2026-09-16T17:37:24.510Z"
+  },
+  "seguranca": {
+    "formato": "CCO_SECURE_V2",
+    "algoritmo": "PBKDF2-HMAC-SHA512",
+    "iteracoes": 100000,
+    "digest": "sha512",
+    "salt": "7b288735f6745a3060e15d65b95b3bdfb2828a1a48fb21766df23409e07f1960",
+    "hash": "dda537d6bc37ed1dbf00e028e086cdc90940482bdb48b932d549a8df65d60b32333cb921d245d59402fa5511c3679ecb6ee941125cf1b030489ecbfa0bb30bac",
+    "dataAtualizacao": "2026-09-17T19:31:59.964Z",
+    "protegido": true
+  }
 }

@@ -28,7 +28,7 @@ const filesToReset = {
   'provisorios.json': template.provisorios || [],
   'visitantes.json': template.visitantes || [],
   'rfid.json': template.rfid || [],
-  'seguranca.json': template.seguranca || { senhaMestra: 'admin123', dataAtualizacao: new Date().toISOString() },
+  'seguranca.json': template.seguranca || require('../src/server/cryptoHelper.cjs').gerarRegistroSeguro('admin123'),
   'responsaveis.json': template.responsaveis || {
     gerenteSite: 'Gerência de Operações',
     coordenacao: 'Coordenação de Segurança Corporativa',
@@ -38,7 +38,9 @@ const filesToReset = {
   'operadores.json': template.operadores || [],
   'vigilantes.json': template.vigilantes || [],
   'turnos.json': template.turnos || [],
-  'observacoes.json': template.observacoes || []
+  'observacoes.json': template.observacoes || [],
+  'cargos.json': template.cargos || [],
+  'sugestoes_observacoes.json': template.sugestoes_observacoes || []
 };
 
 for (const [filename, content] of Object.entries(filesToReset)) {
@@ -55,6 +57,9 @@ const rootFilesToRemove = [
   'operadores.xlsx',
   'vigilantes.json',
   'vigilantes.xlsx',
+  'provisorios.json',
+  'visitantes.json',
+  'rfid.json',
   'responsaveis.json',
   'seguranca.json',
   'turnos.json',

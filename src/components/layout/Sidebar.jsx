@@ -122,9 +122,9 @@ export default function Sidebar({
   const moduloSobre = {
     id: 'sobre',
     label: 'Sobre o Sistema',
-    description: 'Autoria & Licença Rev 1.0',
+    description: 'Autoria & Licença Rev 1.1',
     icon: HelpCircle,
-    badge: 'Rev 1.0',
+    badge: 'Rev 1.1',
   };
 
   return (

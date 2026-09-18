@@ -267,6 +267,70 @@ export function registrarBaixaDevolucao(registros, idRegistro, dadosDevolucao = 
 }
 
 /**
+ * REGRA DE NEGÓCIO: Edição Completa de Registro de Credencial Provisória
+ */
+export function editarRegistroProvisorio(registros, idRegistro, dadosAtualizados = {}) {
+  const listaSegura = Array.isArray(registros) ? registros : [];
+  if (!idRegistro) {
+    throw new Error('Identificador do registro provisório é obrigatório para edição.');
+  }
+
+  const novaLista = listaSegura.map(item => {
+    if (String(item.id) === String(idRegistro)) {
+      const dataRet = dadosAtualizados.dataRetirada !== undefined ? dadosAtualizados.dataRetirada : item.dataRetirada;
+      const horaRet = dadosAtualizados.horaRetirada !== undefined ? dadosAtualizados.horaRetirada : item.horaRetirada;
+      const situacao = dadosAtualizados.situacao || item.situacao;
+      let dataDev = dadosAtualizados.dataDevolucao !== undefined ? dadosAtualizados.dataDevolucao : item.dataDevolucao;
+      let horaDev = dadosAtualizados.horaDevolucao !== undefined ? dadosAtualizados.horaDevolucao : item.horaDevolucao;
+      let vigilanteDev = dadosAtualizados.vigilanteDevolucao !== undefined ? dadosAtualizados.vigilanteDevolucao : item.vigilanteDevolucao;
+
+      // Se o status for NÃO DEVOLVIDO, limpa devolução; se for DEVOLVIDO, garante data e hora preenchidas
+      if (situacao === 'NÃO DEVOLVIDO' || situacao === 'NAO_DEVOLVIDO') {
+        dataDev = null;
+        horaDev = null;
+        vigilanteDev = null;
+      } else if (situacao === 'DEVOLVIDO') {
+        if (!dataDev) dataDev = dataRet || new Date().toISOString().split('T')[0];
+        if (!horaDev) horaDev = new Date().toTimeString().split(' ')[0].substring(0, 5);
+      }
+
+      let tempoPermanencia = item.tempoPermanencia;
+      if (dataDev && horaDev && dataRet && horaRet) {
+        tempoPermanencia = calcularDuracaoPermanencia(dataRet, horaRet, dataDev, horaDev);
+      } else if (!dataDev) {
+        tempoPermanencia = null;
+      }
+
+      return {
+        ...item,
+        ...dadosAtualizados,
+        id: item.id,
+        cartao: dadosAtualizados.cartao || item.cartao,
+        portaria: dadosAtualizados.portaria || item.portaria,
+        colaborador: dadosAtualizados.colaborador ? normalizarNome(dadosAtualizados.colaborador) : item.colaborador,
+        empresa: dadosAtualizados.empresa ? String(dadosAtualizados.empresa).trim().toUpperCase() : item.empresa,
+        matricula: dadosAtualizados.matricula !== undefined ? dadosAtualizados.matricula : item.matricula,
+        cargo: dadosAtualizados.cargo !== undefined ? dadosAtualizados.cargo : item.cargo,
+        dataRetirada: dataRet,
+        horaRetirada: horaRet,
+        dataDevolucao: dataDev || null,
+        horaDevolucao: horaDev || null,
+        tempoPermanencia,
+        situacao,
+        observacao: dadosAtualizados.observacao || item.observacao,
+        justificativa: dadosAtualizados.justificativa !== undefined ? dadosAtualizados.justificativa : item.justificativa,
+        vigilante: dadosAtualizados.vigilante || item.vigilante,
+        vigilanteDevolucao: vigilanteDev || null
+      };
+    }
+    return item;
+  });
+
+  salvarRegistros(novaLista);
+  return novaLista;
+}
+
+/**
  * Registra perda / extravio de credencial provisória (aciona fluxo de cobrança)
  */
 export function registrarPerdaProvisorio(registros, idRegistro, dadosPerda = {}) {
@@ -330,8 +394,18 @@ export function calcularMetricasProvisorios(registros) {
   const mesAtual = new Date().toISOString().substring(0, 7);
   const hojeStr = new Date().toISOString().split('T')[0];
 
-  const totalPendentes = listaSegura.filter(r => r && (r.situacao === 'NÃO DEVOLVIDO' || r.situacao === 'NAO_DEVOLVIDO' || r.status === 'NAO_DEVOLVIDO') && !(r.situacao === 'PERDIDO' || r.status === 'PERDIDO' || r.observacao === 'PERDEU')).length;
-  const totalDevolvidosHoje = listaSegura.filter(r => r && r.situacao === 'DEVOLVIDO' && r.dataDevolucao === hojeStr).length;
+  const totalPendentes = listaSegura.filter(r => {
+    if (!r) return false;
+    const isPerdido = r.situacao === 'PERDIDO' || r.status === 'PERDIDO' || r.observacao === 'PERDEU';
+    const isPago = r.situacao === 'PAGO' || r.status === 'PAGO';
+    if (isPerdido || isPago) return false;
+    return !r.dataDevolucao || r.situacao === 'NÃO DEVOLVIDO' || r.situacao === 'NAO_DEVOLVIDO' || r.status === 'NAO_DEVOLVIDO';
+  }).length;
+
+  const totalDevolvidosHoje = listaSegura.filter(r => {
+    if (!r) return false;
+    return (r.situacao === 'DEVOLVIDO' || r.status === 'DEVOLVIDO') && Boolean(r.dataDevolucao) && r.dataDevolucao === hojeStr;
+  }).length;
   const totalRegistros = listaSegura.length;
 
   // Extraviados vs Ressarcidos

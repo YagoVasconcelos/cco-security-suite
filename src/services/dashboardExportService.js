@@ -7,6 +7,7 @@ import { carregarRegistros as carregarRegistrosProvisorios } from './provisorios
 import { carregarVisitantes as carregarRegistrosVisitantes } from './visitantesService.js';
 import { carregarInventarioRfid } from './rfidService.js';
 import { obterResponsaveisSincrono } from './responsaveisService.js';
+import { normalizarGravidade } from '../constants/taxonomiaCco.js';
 
 /**
  * Função utilitária para invocar o plugin jspdf-autotable com máxima compatibilidade ESM/Vite
@@ -173,7 +174,8 @@ export async function exportarRelatorioConsolidadoPdf({
   periodoNome = 'Mês Atual (Setembro/2026)',
   filtros = {},
   operador = 'Op. Operador 01',
-  dadosConsolidados = null
+  dadosConsolidados = null,
+  nomeArquivoPersonalizado = null
 } = {}) {
   try {
     const JsPdfConstructor = typeof jsPDF === 'function' ? jsPDF : (jsPDF?.jsPDF || jsPDF?.default?.jsPDF || jsPDF?.default || jsPDF);
@@ -259,12 +261,12 @@ export async function exportarRelatorioConsolidadoPdf({
       });
     }
 
-    // Métricas consolidadas
+    // Métricas consolidadas com normalização de gravidade
     const totalOcorrencias = ocorrencias.length;
-    const criticas = ocorrencias.filter(o => o && o.gravidade === 'Crítica').length;
-    const altas = ocorrencias.filter(o => o && (o.gravidade === 'Alta' || o.gravidade === 'Grave')).length;
-    const medias = ocorrencias.filter(o => o && o.gravidade === 'Média').length;
-    const baixas = ocorrencias.filter(o => o && (o.gravidade === 'Baixa' || o.gravidade === 'Leve')).length;
+    const criticas = ocorrencias.filter(o => o && normalizarGravidade(o.gravidade) === 'Crítica').length;
+    const altas = ocorrencias.filter(o => o && normalizarGravidade(o.gravidade) === 'Alta').length;
+    const medias = ocorrencias.filter(o => o && normalizarGravidade(o.gravidade) === 'Média').length;
+    const baixas = ocorrencias.filter(o => o && normalizarGravidade(o.gravidade) === 'Baixa').length;
     const pctCritica = totalOcorrencias > 0 ? Math.round((criticas / totalOcorrencias) * 100) : 0;
     const pctAlta = totalOcorrencias > 0 ? Math.round((altas / totalOcorrencias) * 100) : 0;
     const pctMedia = totalOcorrencias > 0 ? Math.round((medias / totalOcorrencias) * 100) : 0;
@@ -479,13 +481,13 @@ export async function exportarRelatorioConsolidadoPdf({
       linhasRecentes = tabelasAnaliticas.ultimasOcorrencias.slice(0, 4).map(u => [
         u.numeroRO || 'RO-2026',
         u.predio || u.local || 'Planta',
-        u.gravidade || 'Média'
+        normalizarGravidade(u.gravidade)
       ]);
     } else {
       linhasRecentes = ocorrencias.slice(0, 4).map(o => [
         o?.numeroRO || 'RO-2026',
         o?.predio || o?.local || 'Planta Operacional',
-        o?.gravidade || 'MÉDIA'
+        normalizarGravidade(o?.gravidade)
       ]);
     }
     if (linhasRecentes.length === 0) {
@@ -581,7 +583,7 @@ export async function exportarRelatorioConsolidadoPdf({
       o?.numeroRO || 'RO-2026',
       `${o?.data || ''} ${o?.hora || ''}`.trim() || '-',
       o?.local || (o?.predio ? `${o.predio} - ${o.area || ''}` : 'Planta Operacional'),
-      o?.gravidade || 'MÉDIA',
+      normalizarGravidade(o?.gravidade),
       o?.titulo || 'Ocorrência Operacional',
       o?.operador || 'Op. CCO'
     ]);
@@ -1226,9 +1228,12 @@ export async function exportarRelatorioConsolidadoPdf({
       );
     }
 
-    // Nome do arquivo padronizado
-    const dataHojeStr = new Date().toISOString().substring(0, 10);
-    const nomeArquivo = `CCO_Relatorio_Executivo_Consolidado_${dataHojeStr}.pdf`;
+    // Nome do arquivo padronizado conforme especificação
+    const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const agora = new Date();
+    const mesAtual = meses[agora.getMonth()];
+    const anoAtual = agora.getFullYear();
+    const nomeArquivo = nomeArquivoPersonalizado || `Dashboard Executivo de Segurança & Operações - Visão Consolidada - Mês ${mesAtual} Ano ${anoAtual} (1).pdf`;
 
     // Gatilho de download nativo seguro do navegador via Blob ou doc.save
     try {
@@ -1427,7 +1432,7 @@ export async function exportarBaseConsolidadaExcel({
           'Área': o?.area || (o?.local && o?.local.includes(' - ') ? o.local.split(' - ')[1] : '') || '',
           'Tópico': o?.topico || '-',
           'Local Completo': o?.local || `${o?.predio || ''} - ${o?.area || ''}`,
-          'Gravidade': o?.gravidade || 'Média',
+          'Gravidade': normalizarGravidade(o?.gravidade),
           'Título': o?.titulo || '-',
           'Descrição': o?.descricao || '-',
           'Qtd Envolvidos': Array.isArray(o?.envolvidos) ? o.envolvidos.length : 0,

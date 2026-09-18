@@ -47,6 +47,8 @@ provisorios.json
 rfid.json
 vigilantes.json
 visitantes.json
+cargos.json
+taxonomia_predios_areas.json
 
 # 3. Planilhas Excel com Dados e Registros Reais da Operação
 *.xlsx
@@ -61,3 +63,12 @@ exports/*
 
 # 5. Diretórios de Rede e Dados Locais
 MAPA DE CALOR/
+
+# 6. Licenças Locais e Chaves de Máquina (HWID)
+*.lic
+license.lic
+
+# 7. Uploads e Anexos Locais
+public/uploads/*
+!public/uploads/.gitkeep
+

@@ -46,6 +46,8 @@ import {
   AREAS_CCO,
   TOPICOS_OCORRENCIA,
   EMPRESAS_CCO,
+  GRAVIDADES_CCO,
+  normalizarGravidade,
   obterAreasDoPredio
 } from '../../constants/taxonomiaCco';
 import { 
@@ -74,6 +76,7 @@ import {
 } from '../../services/rfidService';
 import RelatorioCobrancaModal from '../rfid/RelatorioCobrancaModal';
 import RelatorioExecutivoPrint from './RelatorioExecutivoPrint';
+import { obterResponsaveisSincrono } from '../../services/responsaveisService';
 
 // Taxa regulamentar padronizada para cobrança de 2ª via de credenciais e crachás
 const TAXA_SEGUNDA_VIA = 30.0;
@@ -180,6 +183,7 @@ export default function DashboardExecutivoView({
   const [filtroPredio, setFiltroPredio] = useState('TODOS');
   const [filtroArea, setFiltroArea] = useState('TODAS');
   const [filtroTopico, setFiltroTopico] = useState('TODOS');
+  const [filtroGravidade, setFiltroGravidade] = useState('TODAS');
 
   // Áreas disponíveis para o filtro de Ocorrências com base no prédio selecionado
   const areasFiltroDisponiveis = useMemo(() => {
@@ -207,9 +211,9 @@ export default function DashboardExecutivoView({
   // Notificação / Feedback de exportação (UI)
   const [toast, setToast] = useState(null);
 
-  const showToast = (mensagem, tipo = 'info') => {
-    setToast({ mensagem, tipo });
-    setTimeout(() => setToast(null), 4500);
+  const showToast = (mensagem, tipo = 'info', acao = null) => {
+    setToast({ mensagem, tipo, acao });
+    setTimeout(() => setToast(null), 6000);
   };
 
   // Mapeia o rótulo amigável do período
@@ -380,7 +384,8 @@ export default function DashboardExecutivoView({
   //    (Prédio, Área e Tópico NUNCA afetam Credenciais ou Visitantes)
   // =========================================================================
 
-  const ocorrenciasFiltradas = useMemo(() => {
+  // 1. Base filtrada pelos eixos operacionais (Data, Prédio, Área, Tópico)
+  const ocorrenciasBase = useMemo(() => {
     const lista = Array.isArray(ocorrenciasSalvas) ? ocorrenciasSalvas : [];
     return lista.filter(o => {
       if (!o) return false;
@@ -459,17 +464,23 @@ export default function DashboardExecutivoView({
     });
   }, [rfidBase, periodo, dataInicio, dataFim, filtroEmpresa]);
 
-  // Métricas calculadas dinamicamente
-  const totalOcorrencias = (Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : []).length;
-  const criticas = (Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : []).filter(o => o && o.gravidade === 'Crítica').length;
-  const altas = (Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : []).filter(o => o && (o.gravidade === 'Alta' || o.gravidade === 'Grave')).length;
-  const medias = (Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : []).filter(o => o && o.gravidade === 'Média').length;
-  const baixas = (Array.isArray(ocorrenciasFiltradas) ? ocorrenciasFiltradas : []).filter(o => o && (o.gravidade === 'Baixa' || o.gravidade === 'Leve')).length;
+  // Métricas calculadas dinamicamente com normalização robusta de gravidade
+  const totalOcorrencias = ocorrenciasBase.length;
+  const criticas = ocorrenciasBase.filter(o => o && normalizarGravidade(o.gravidade) === 'Crítica').length;
+  const altas = ocorrenciasBase.filter(o => o && normalizarGravidade(o.gravidade) === 'Alta').length;
+  const medias = ocorrenciasBase.filter(o => o && normalizarGravidade(o.gravidade) === 'Média').length;
+  const baixas = ocorrenciasBase.filter(o => o && normalizarGravidade(o.gravidade) === 'Baixa').length;
 
   const pctCritica = totalOcorrencias > 0 ? Math.round((criticas / totalOcorrencias) * 100) : 0;
   const pctAlta = totalOcorrencias > 0 ? Math.round((altas / totalOcorrencias) * 100) : 0;
   const pctMedia = totalOcorrencias > 0 ? Math.round((medias / totalOcorrencias) * 100) : 0;
   const pctBaixa = totalOcorrencias > 0 ? Math.round((baixas / totalOcorrencias) * 100) : 0;
+
+  // 2. Ocorrências filtradas finais (se filtroGravidade estiver ativo, afunila tabelas e listagens analíticas)
+  const ocorrenciasFiltradas = useMemo(() => {
+    if (filtroGravidade === 'TODAS') return ocorrenciasBase;
+    return ocorrenciasBase.filter(o => o && normalizarGravidade(o.gravidade) === filtroGravidade);
+  }, [ocorrenciasBase, filtroGravidade]);
 
   // -------------------------------------------------------------------------
   // 4 TABELAS DO DETALHAMENTO ANALÍTICO (RESUMO RÁPIDO PARA GESTÃO CCO)
@@ -999,17 +1010,54 @@ export default function DashboardExecutivoView({
       showToast('Processando documento e gerando PDF idêntico à impressão (Modo Paisagem)...', 'info');
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // 1. No Electron: usa printToPDF nativo com exatamente o mesmo CSS @media print
+      // 1. Determina o nome do módulo ativo e período no padrão estrito da especificação
+      const getModuloNomeAmigavel = () => {
+        switch (abaAtiva) {
+          case 'd1': return 'Relatórios de Ocorrência';
+          case 'd2': return 'Provisórios & Cautelas';
+          case 'd3': return 'Controle de Visitantes';
+          case 'd4': return 'Gestão RFID & Contabilidade';
+          default: return 'Visão Consolidada';
+        }
+      };
+
+      const getMesAnoLabel = () => {
+        const agora = new Date();
+        const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        let mes = meses[agora.getMonth()];
+        let ano = String(agora.getFullYear());
+
+        if (dataInicio && dataInicio.includes('-')) {
+          const [anoP, mesP] = dataInicio.split('-');
+          const idx = parseInt(mesP, 10) - 1;
+          if (idx >= 0 && idx < 12) {
+            mes = meses[idx];
+            ano = anoP;
+          }
+        }
+        return `Mês ${mes} Ano ${ano}`;
+      };
+
+      const nomeSugerido = `Dashboard Executivo de Segurança & Operações - ${getModuloNomeAmigavel()} - ${getMesAnoLabel()} (1).pdf`;
+
+      // 2. No Electron: usa printToPDF nativo com exatamente o mesmo CSS @media print
       if (window.electronAPI && typeof window.electronAPI.salvarPdfNativo === 'function') {
-        const moduloNome = 
-          abaAtiva === 'd1' ? 'Ocorrencias' :
-          abaAtiva === 'd2' ? 'Provisorios' :
-          abaAtiva === 'd3' ? 'Visitantes' :
-          abaAtiva === 'd4' ? 'RFID_Contabilidade' : 'Consolidado_4_Modulos';
-        const nomeSugerido = `Relatorio_CCO_${moduloNome}_${new Date().toISOString().slice(0, 10)}.pdf`;
-        const res = await window.electronAPI.salvarPdfNativo({ nomeSugerido, paisagem: true });
+        const respConfig = obterResponsaveisSincrono();
+        const res = await window.electronAPI.salvarPdfNativo({ 
+          nomeSugerido, 
+          paisagem: true,
+          caminhoRede: respConfig?.caminhoRede
+        });
         if (res && res.sucesso) {
-          showToast(`✓ PDF gerado com sucesso (${res.nomeArquivo})! [Salvo em Documentos/CCO Security Suite/exports]`, 'success');
+          const pastaAlvo = res.diretorio || res.caminho;
+          showToast(
+            `✓ PDF gerado com sucesso (${res.nomeArquivo})! [Salvo em: ${pastaAlvo}]`, 
+            'success',
+            window.electronAPI?.abrirPasta ? {
+              label: 'Abrir Pasta',
+              onClick: () => window.electronAPI.abrirPasta(pastaAlvo)
+            } : null
+          );
           return;
         }
       }
@@ -1088,6 +1136,7 @@ export default function DashboardExecutivoView({
     setFiltroPredio('TODOS');
     setFiltroArea('TODAS');
     setFiltroTopico('TODOS');
+    setFiltroGravidade('TODAS');
     setFiltroEmpresa('TODAS');
     showToast('Filtros restaurados para os valores padrão.', 'info');
   };
@@ -1097,9 +1146,18 @@ export default function DashboardExecutivoView({
 
       {/* Toast Feedback */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white shadow-2xl animate-in slide-in-from-bottom-5 no-print print:hidden">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white shadow-2xl animate-in slide-in-from-bottom-5 no-print print:hidden max-w-xl">
           <Sparkles className="w-4 h-4 text-blue-400 shrink-0" />
-          <span className="text-xs font-medium">{toast.mensagem}</span>
+          <span className="text-xs font-medium truncate" title={toast.mensagem}>{toast.mensagem}</span>
+          {toast.acao && (
+            <button
+              type="button"
+              onClick={toast.acao.onClick}
+              className="ml-auto px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold shrink-0 transition-colors shadow-sm cursor-pointer"
+            >
+              {toast.acao.label}
+            </button>
+          )}
         </div>
       )}
 
@@ -1311,7 +1369,7 @@ export default function DashboardExecutivoView({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {/* Prédio */}
                   <div>
                     <label className="text-[10px] font-bold text-slate-200 mb-1 block uppercase">
@@ -1369,6 +1427,23 @@ export default function DashboardExecutivoView({
                       <option value="TODOS">Todos os Tópicos (16)</option>
                       {TOPICOS_OCORRENCIA.map((top) => (
                         <option key={top} value={top}>{top}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Gravidade / Severidade */}
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-200 mb-1 block uppercase">
+                      Gravidade / Severidade
+                    </label>
+                    <select
+                      value={filtroGravidade}
+                      onChange={(e) => setFiltroGravidade(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 hover:border-blue-500/60 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer truncate"
+                    >
+                      <option value="TODAS">Todas as Gravidades</option>
+                      {GRAVIDADES_CCO.map((grav) => (
+                        <option key={grav} value={grav}>{grav}</option>
                       ))}
                     </select>
                   </div>
@@ -1693,18 +1768,55 @@ export default function DashboardExecutivoView({
                   <ShieldAlert className="w-4 h-4 text-blue-400" />
                   Distribuição de Ocorrências por Gravidade & Severidade
                 </h3>
-                <p className="text-xs text-slate-200">
-                  Classificação operacional: Prédio [{filtroPredio}], Área [{filtroArea}], Tópico [{filtroTopico}]
+                <p className="text-xs text-slate-200 flex items-center gap-1.5 flex-wrap">
+                  <span>Classificação operacional: Prédio [{filtroPredio}], Área [{filtroArea}], Tópico [{filtroTopico}]</span>
+                  {filtroGravidade !== 'TODAS' && (
+                    <span className="inline-flex items-center gap-1 font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                      Filtrado por: {filtroGravidade}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFiltroGravidade('TODAS');
+                        }}
+                        className="ml-1 hover:text-white text-slate-400"
+                        title="Limpar filtro de gravidade"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
                 </p>
               </div>
-              <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-md bg-slate-800 text-slate-200 border border-slate-700">
-                Total: {totalOcorrencias} RO(s)
-              </span>
+              <div className="flex items-center gap-2">
+                {filtroGravidade !== 'TODAS' && (
+                  <button
+                    type="button"
+                    onClick={() => setFiltroGravidade('TODAS')}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition-colors cursor-pointer"
+                  >
+                    Ver Todas
+                  </button>
+                )}
+                <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-md bg-slate-800 text-slate-200 border border-slate-700">
+                  Total: {totalOcorrencias} RO(s)
+                </span>
+              </div>
             </div>
 
-            {/* 4 Barras de Gravidade em Grid */}
+            {/* 4 Barras de Gravidade em Grid Interativo */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80">
+              {/* Crítica */}
+              <button
+                type="button"
+                onClick={() => setFiltroGravidade(prev => prev === 'Crítica' ? 'TODAS' : 'Crítica')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  filtroGravidade === 'Crítica'
+                    ? 'bg-red-950/40 border-red-500/80 ring-2 ring-red-500/50 shadow-lg shadow-red-500/20'
+                    : 'bg-slate-950/60 border-slate-800/80 hover:border-red-500/50 hover:bg-slate-900/60'
+                }`}
+                title="Clique para filtrar por ocorrências Críticas"
+              >
                 <div className="flex items-center justify-between text-xs mb-1.5">
                   <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
@@ -1718,9 +1830,23 @@ export default function DashboardExecutivoView({
                     style={{ width: `${Math.max(pctCritica, totalOcorrencias > 0 && criticas > 0 ? 5 : 0)}%` }}
                   ></div>
                 </div>
-              </div>
+                <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+                  <span>Incidente Imediato</span>
+                  <span className="font-mono">{criticas} de {totalOcorrencias}</span>
+                </div>
+              </button>
 
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80">
+              {/* Alta */}
+              <button
+                type="button"
+                onClick={() => setFiltroGravidade(prev => prev === 'Alta' ? 'TODAS' : 'Alta')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  filtroGravidade === 'Alta'
+                    ? 'bg-orange-950/40 border-orange-500/80 ring-2 ring-orange-500/50 shadow-lg shadow-orange-500/20'
+                    : 'bg-slate-950/60 border-slate-800/80 hover:border-orange-500/50 hover:bg-slate-900/60'
+                }`}
+                title="Clique para filtrar por ocorrências de Alta gravidade"
+              >
                 <div className="flex items-center justify-between text-xs mb-1.5">
                   <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
@@ -1734,9 +1860,23 @@ export default function DashboardExecutivoView({
                     style={{ width: `${Math.max(pctAlta, totalOcorrencias > 0 && altas > 0 ? 5 : 0)}%` }}
                   ></div>
                 </div>
-              </div>
+                <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+                  <span>Requer Apuração</span>
+                  <span className="font-mono">{altas} de {totalOcorrencias}</span>
+                </div>
+              </button>
 
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80">
+              {/* Média */}
+              <button
+                type="button"
+                onClick={() => setFiltroGravidade(prev => prev === 'Média' ? 'TODAS' : 'Média')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  filtroGravidade === 'Média'
+                    ? 'bg-amber-950/40 border-amber-500/80 ring-2 ring-amber-500/50 shadow-lg shadow-amber-500/20'
+                    : 'bg-slate-950/60 border-slate-800/80 hover:border-amber-500/50 hover:bg-slate-900/60'
+                }`}
+                title="Clique para filtrar por ocorrências Médias"
+              >
                 <div className="flex items-center justify-between text-xs mb-1.5">
                   <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
@@ -1750,9 +1890,23 @@ export default function DashboardExecutivoView({
                     style={{ width: `${Math.max(pctMedia, totalOcorrencias > 0 && medias > 0 ? 5 : 0)}%` }}
                   ></div>
                 </div>
-              </div>
+                <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+                  <span>Ocorrência Padrão</span>
+                  <span className="font-mono">{medias} de {totalOcorrencias}</span>
+                </div>
+              </button>
 
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80">
+              {/* Baixa */}
+              <button
+                type="button"
+                onClick={() => setFiltroGravidade(prev => prev === 'Baixa' ? 'TODAS' : 'Baixa')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  filtroGravidade === 'Baixa'
+                    ? 'bg-blue-950/40 border-blue-500/80 ring-2 ring-blue-500/50 shadow-lg shadow-blue-500/20'
+                    : 'bg-slate-950/60 border-slate-800/80 hover:border-blue-500/50 hover:bg-slate-900/60'
+                }`}
+                title="Clique para filtrar por ocorrências Baixas / Leves"
+              >
                 <div className="flex items-center justify-between text-xs mb-1.5">
                   <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
@@ -1766,7 +1920,11 @@ export default function DashboardExecutivoView({
                     style={{ width: `${Math.max(pctBaixa, totalOcorrencias > 0 && baixas > 0 ? 5 : 0)}%` }}
                   ></div>
                 </div>
-              </div>
+                <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+                  <span>Notificação / Leve</span>
+                  <span className="font-mono">{baixas} de {totalOcorrencias}</span>
+                </div>
+              </button>
             </div>
 
             {/* Destaque de Resolução */}
@@ -2066,19 +2224,24 @@ export default function DashboardExecutivoView({
                                   </div>
                                 </td>
                                 <td className="py-2 px-2">
-                                  <span
-                                    className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                                      item.gravidade === 'Crítica'
-                                        ? 'bg-red-500/25 text-red-100 border border-red-400/50'
-                                        : item.gravidade === 'Alta' || item.gravidade === 'Grave'
-                                        ? 'bg-orange-500/25 text-orange-100 border border-orange-400/50'
-                                        : item.gravidade === 'Média'
-                                        ? 'bg-amber-500/25 text-amber-100 border border-amber-400/50'
-                                        : 'bg-blue-500/25 text-blue-100 border border-blue-400/50'
-                                    }`}
-                                  >
-                                    {item.gravidade || 'Média'}
-                                  </span>
+                                  {(() => {
+                                    const grav = normalizarGravidade(item.gravidade);
+                                    return (
+                                      <span
+                                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                                          grav === 'Crítica'
+                                            ? 'bg-red-500/25 text-red-100 border border-red-400/50'
+                                            : grav === 'Alta'
+                                            ? 'bg-orange-500/25 text-orange-100 border border-orange-400/50'
+                                            : grav === 'Média'
+                                            ? 'bg-amber-500/25 text-amber-100 border border-amber-400/50'
+                                            : 'bg-blue-500/25 text-blue-100 border border-blue-400/50'
+                                        }`}
+                                      >
+                                        {grav}
+                                      </span>
+                                    );
+                                  })()}
                                 </td>
                                 <td className="py-2 px-2 text-right font-mono text-slate-200 text-xs">
                                   <span>{item.data ? `${item.data.substring(8, 10)}/${item.data.substring(5, 7)}` : '--'} {item.hora || ''}</span>

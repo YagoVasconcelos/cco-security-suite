@@ -1,15 +1,15 @@
-# CCO Security Suite Rev 1.0 | TecPrimus Soluções Tecnológicas
-**Desenvolvedor:** Yago Marinho | **Empresa:** TecPrimus Soluções Tecnológicas | **Versão:** Rev 1.0 (2026)  
+# CCO Security Suite Rev 1.1 | TecPrimus Soluções Tecnológicas
+**Desenvolvedor:** Yago Marinho | **Empresa:** TecPrimus Soluções Tecnológicas | **Versão:** Rev 1.1 (2026)  
 **Contato:** [LinkedIn](https://www.linkedin.com/in/yago-marinho-b8a309141/) | [GitHub](https://github.com/YagoVasconcelos) | **E-mail:** tecprimus2021@outlook.com
 
 ---
 
-# Documento de Requisitos de Software (DRS) — Rev 1.0
+# Documento de Requisitos de Software (DRS) — Rev 1.1
 
 ## 1. Visão Geral do Sistema
 
 ### 1.1 Escopo e Propósito
-O **CCO Security Suite (Rev 1.0)** é uma plataforma corporativa nativa para desktop (Windows) projetada para a **Central de Controle Operacional (CCO)** de segurança patrimonial, facilities e inteligência de acesso em plantas industriais, complexos corporativos, centros logísticos e condomínios empresariais.
+O **CCO Security Suite (Rev 1.1)** é uma plataforma corporativa nativa para desktop (Windows) projetada para a **Central de Controle Operacional (CCO)** de segurança patrimonial, facilities e inteligência de acesso em plantas industriais, complexos corporativos, centros logísticos e condomínios empresariais.
 
 O sistema substitui formulários manuais em papel e planilhas descentralizadas por um ecossistema unificado, seguro e auditável, que contempla o ciclo de vida completo de registros de segurança:
 * Emissão e custódia de Relatórios de Ocorrências (RO) com padrão corporativo oficial e impressão limpa;
@@ -162,5 +162,5 @@ O sistema implementa uma separação estrutural e conceitual rigorosa entre os a
 * O salvamento de relatórios e ocorrências é concorrente e tolerante a falhas: grava na pasta de rede informada pelo operador em Configurações (`caminhoRede`) e espelha compulsoriamente no diretório seguro do Windows (`%USERPROFILE%\Documents\CCO Security Suite\exports`). Se a pasta de rede estiver inacessível, a emissão não é interrompida e a via local é preservada com notificação em tela.
 
 ---
-*Documento aprovado e homologado para a Release Oficial Rev 1.0 (Produção).*
+*Documento aprovado e homologado para a Release Oficial Rev 1.1 (Produção).*
 

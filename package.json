@@ -1,7 +1,7 @@
 {
   "name": "cco-security-suite",
   "productName": "CCO Security Suite",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Central de Controle Operacional - Plataforma Integrada de Inteligência de Segurança",
   "author": {
     "name": "TecPrimus Soluções Tecnológicas",
@@ -24,7 +24,7 @@
     "electron:start": "electron .",
     "build:exe": "npm run clean:dist && npm run clean:data && npm run generate:icon && vite build && electron-builder --win nsis",
     "build:portable": "npm run clean:dist && npm run clean:data && npm run generate:icon && vite build && electron-builder --win portable",
-    "build:all": "npm run clean:dist && npm run clean:data && npm run generate:icon && vite build && electron-builder --win nsis portable"
+    "build:all": "npm run clean:dist && npm run clean:data && npm run generate:icon && vite build && electron-builder --win nsis && electron-builder --win portable"
   },
   "build": {
     "appId": "com.tecprimus.ccosecuritysuite",
@@ -83,7 +83,9 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "installerIcon": "public/shield.ico",
-      "uninstallerIcon": "public/shield.ico"
+      "uninstallerIcon": "public/shield.ico",
+      "license": "build/termos_licenca.txt",
+      "include": "build/installer.nsh"
     },
     "portable": {
       "artifactName": "${productName} Portable ${version}.${ext}"
@@ -106,6 +108,7 @@
     "electron": "^44.2.0",
     "electron-builder": "^26.15.3",
     "marked": "^18.0.12",
+    "pdf-parse": "^2.4.5",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "vite": "^6.1.0",

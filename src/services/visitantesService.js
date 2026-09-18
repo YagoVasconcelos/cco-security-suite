@@ -213,6 +213,60 @@ export function registrarSaidaVisitante(visitantes, idVisitante, dadosSaida = {}
 }
 
 /**
+ * REGRA DE NEGÓCIO: Edição Completa de Registro de Visitante
+ */
+export function editarRegistroVisitante(visitantes, idVisitante, dadosAtualizados = {}) {
+  const listaSegura = Array.isArray(visitantes) ? visitantes : [];
+  if (!idVisitante) {
+    throw new Error('Identificador do visitante é obrigatório para edição.');
+  }
+
+  const novaLista = listaSegura.map(item => {
+    if (String(item.id) === String(idVisitante)) {
+      const dataEnt = dadosAtualizados.dataEntrada !== undefined ? dadosAtualizados.dataEntrada : item.dataEntrada;
+      const horaEnt = dadosAtualizados.horaEntrada !== undefined ? dadosAtualizados.horaEntrada : item.horaEntrada;
+      const dataSai = dadosAtualizados.dataSaida !== undefined ? dadosAtualizados.dataSaida : item.dataSaida;
+      const horaSai = dadosAtualizados.horaSaida !== undefined ? dadosAtualizados.horaSaida : item.horaSaida;
+
+      let tempoPermanencia = item.tempoPermanencia;
+      if (dataSai && horaSai && dataEnt && horaEnt) {
+        tempoPermanencia = calcularPermanenciaVisitante(dataEnt, horaEnt, dataSai, horaSai);
+      } else if (!dataSai) {
+        tempoPermanencia = null;
+      }
+
+      return {
+        ...item,
+        ...dadosAtualizados,
+        id: item.id,
+        cartao: dadosAtualizados.cartao || item.cartao,
+        portaria: dadosAtualizados.portaria || item.portaria,
+        visitante: dadosAtualizados.visitante ? String(dadosAtualizados.visitante).trim().toUpperCase() : item.visitante,
+        documento: dadosAtualizados.documento !== undefined ? String(dadosAtualizados.documento).trim() : item.documento,
+        empresa: dadosAtualizados.empresa ? String(dadosAtualizados.empresa).trim().toUpperCase() : item.empresa,
+        placaVeiculo: dadosAtualizados.placaVeiculo !== undefined ? String(dadosAtualizados.placaVeiculo).trim().toUpperCase() : item.placaVeiculo,
+        anfitriao: dadosAtualizados.anfitriao ? String(dadosAtualizados.anfitriao).trim().toUpperCase() : item.anfitriao,
+        anfitriaoSetor: dadosAtualizados.anfitriaoSetor !== undefined ? String(dadosAtualizados.anfitriaoSetor).trim().toUpperCase() : item.anfitriaoSetor,
+        anfitriaoRamal: dadosAtualizados.anfitriaoRamal !== undefined ? String(dadosAtualizados.anfitriaoRamal).trim() : item.anfitriaoRamal,
+        motivo: dadosAtualizados.motivo || item.motivo,
+        dataEntrada: dataEnt,
+        horaEntrada: horaEnt,
+        dataSaida: dataSai || null,
+        horaSaida: horaSai || null,
+        tempoPermanencia,
+        situacao: dadosAtualizados.situacao || item.situacao,
+        vigilanteEntrada: dadosAtualizados.vigilanteEntrada || item.vigilanteEntrada,
+        vigilanteSaida: dadosAtualizados.vigilanteSaida !== undefined ? dadosAtualizados.vigilanteSaida : item.vigilanteSaida
+      };
+    }
+    return item;
+  });
+
+  salvarVisitantes(novaLista);
+  return novaLista;
+}
+
+/**
  * REGRA DE NEGÓCIO: Consulta o histórico completo de visitas vinculadas a um Anfitrião
  */
 export function obterHistoricoPorAnfitriao(visitantes, nomeAnfitriao) {

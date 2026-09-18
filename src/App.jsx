@@ -9,6 +9,7 @@ import GestaoRfidView from './modules/rfid/GestaoRfidView';
 import ConfiguracoesView from './modules/configuracoes/ConfiguracoesView';
 import ModalSenhaMestra from './components/common/ModalSenhaMestra';
 import ModalSobre from './components/common/ModalSobre';
+import ModalKeyboardManager from './components/common/ModalKeyboardManager';
 import { Shield, Construction } from 'lucide-react';
 import { 
   obterNomesOperadoresAtivos, 
@@ -103,6 +104,9 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans antialiased print:h-auto print:overflow-visible print:bg-transparent print:w-full print:m-0 print:p-0">
+      {/* Gerenciador Global de Teclas ESC e Trava de TAB para Todas as Subjanelas */}
+      <ModalKeyboardManager />
+
       {/* Modal de Senha Mestra (Acesso Restrito) */}
       <ModalSenhaMestra
         isOpen={modalSenhaAberto}
@@ -110,7 +114,7 @@ export default function App() {
         onSuccess={handleSenhaSucesso}
       />
 
-      {/* Modal Sobre o Sistema (Autoria & Licença Rev 1.0) */}
+      {/* Modal Sobre o Sistema (Autoria & Licença Rev 1.1) */}
       <ModalSobre
         isOpen={modalSobreAberto}
         onClose={() => setModalSobreAberto(false)}

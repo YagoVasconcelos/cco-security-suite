@@ -55,7 +55,7 @@ export default function ModalSobre({ isOpen, onClose }) {
                   CCO Security Suite
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-500/20 text-blue-400 border border-blue-500/40 uppercase tracking-wider">
-                  Rev 1.0 Produção
+                  Rev 1.2 Produção
                 </span>
               </div>
               <p className="text-xs text-slate-400 font-medium">
@@ -104,8 +104,8 @@ export default function ModalSobre({ isOpen, onClose }) {
                 <Award className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-white">Versão do Sistema: 1.0</p>
-                <p className="text-[11px] text-slate-400">Release Oficial Estável para Ambiente de Operação</p>
+                <p className="text-xs font-bold text-white">Versão do Sistema: Rev 1.2 (1.2.0)</p>
+                <p className="text-[11px] text-slate-400">Release Oficial Estável com Proteção HWID</p>
               </div>
             </div>
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">

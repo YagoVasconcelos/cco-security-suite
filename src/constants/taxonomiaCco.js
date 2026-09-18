@@ -1,4 +1,8 @@
 // Matriz Oficial de Taxonomia CCO Security Suite
+import { 
+  obterMapeamentoPrediosAreasSincrono, 
+  obterListaPrediosSincrono 
+} from '../services/taxonomiaService';
 
 /**
  * Operadores exclusivos da Central de Controle Operacional (CCO)
@@ -64,6 +68,7 @@ export const MAPEAMENTO_PREDIO_AREAS_CCO = {
     'RECEPÇÃO'
   ],
   'RESTAURANTE (SODEXO)': [
+    'CATRACA RESTAURANTE',
     'AREA DE SERVIR',
     'MESAS REFETORIO',
     'VESTIARIOS',
@@ -197,27 +202,60 @@ const ALIASES_PREDIO = {
 };
 
 /**
- * Retorna a lista oficial de áreas correspondentes ao prédio informado.
- * Suporta correspondência exata e sinônimos operacionais.
+ * Retorna a lista atualizada de todos os prédios disponíveis (configurados ou padrão)
+ * @returns {string[]}
+ */
+export function obterPrediosAtivos() {
+  try {
+    const dinamicos = obterListaPrediosSincrono();
+    if (Array.isArray(dinamicos) && dinamicos.length > 0) {
+      return Array.from(new Set([...dinamicos, ...PREDIOS_CCO]));
+    }
+  } catch (e) {}
+  return [...PREDIOS_CCO];
+}
+
+/**
+ * Retorna a lista oficial e dinâmica de áreas correspondentes ao prédio informado.
+ * Suporta correspondência exata, sinônimos operacionais e configurações personalizadas.
  * @param {string} predio 
  * @returns {string[]} Lista de áreas do prédio ou array vazio
  */
 export function obterAreasDoPredio(predio) {
   if (!predio || typeof predio !== 'string') return [];
   const pTrim = predio.trim();
+  const pUpper = pTrim.toUpperCase();
 
-  // 1. Busca direta no mapa
+  // 1. Tenta buscar no mapa dinâmico configurado pelo usuário no sistema
+  try {
+    const mapaDinamico = obterMapeamentoPrediosAreasSincrono();
+    if (mapaDinamico && typeof mapaDinamico === 'object') {
+      if (mapaDinamico[pUpper] && Array.isArray(mapaDinamico[pUpper]) && mapaDinamico[pUpper].length > 0) {
+        return [...mapaDinamico[pUpper]];
+      }
+      if (ALIASES_PREDIO[pUpper] && mapaDinamico[ALIASES_PREDIO[pUpper]]) {
+        return [...mapaDinamico[ALIASES_PREDIO[pUpper]]];
+      }
+      const chaveDin = Object.keys(mapaDinamico).find(
+        k => k === pUpper || pUpper.startsWith(k) || k.startsWith(pUpper)
+      );
+      if (chaveDin && mapaDinamico[chaveDin]?.length > 0) {
+        return [...mapaDinamico[chaveDin]];
+      }
+    }
+  } catch (e) {}
+
+  // 2. Busca direta no mapa padrão estático
   if (MAPEAMENTO_PREDIO_AREAS_CCO[pTrim]) {
     return [...MAPEAMENTO_PREDIO_AREAS_CCO[pTrim]];
   }
 
-  // 2. Busca por alias
-  const pUpper = pTrim.toUpperCase();
+  // 3. Busca por alias no mapa padrão estático
   if (ALIASES_PREDIO[pUpper] && MAPEAMENTO_PREDIO_AREAS_CCO[ALIASES_PREDIO[pUpper]]) {
     return [...MAPEAMENTO_PREDIO_AREAS_CCO[ALIASES_PREDIO[pUpper]]];
   }
 
-  // 3. Busca case-insensitive aproximada
+  // 4. Busca case-insensitive aproximada no mapa padrão
   const chaveEncontrada = Object.keys(MAPEAMENTO_PREDIO_AREAS_CCO).find(
     k => k.toUpperCase() === pUpper || pUpper.startsWith(k.toUpperCase()) || k.toUpperCase().startsWith(pUpper)
   );
@@ -270,3 +308,23 @@ export const EMPRESAS_CCO = [
   'CONSTRUÇÃO CIVIL',
   'ADMINISTRAÇÃO CENTRAL'
 ];
+
+/**
+ * Classificações Oficiais de Gravidade / Severidade CCO
+ */
+export const GRAVIDADES_CCO = ['Baixa', 'Média', 'Alta', 'Crítica'];
+
+/**
+ * Normaliza qualquer valor de gravidade (legado, maiúsculo, com ou sem acento, variações como 'LEVE' ou 'GRAVE')
+ * para o formato canônico: 'Baixa' | 'Média' | 'Alta' | 'Crítica'
+ */
+export const normalizarGravidade = (g) => {
+  if (!g) return 'Média';
+  const s = String(g).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (s.includes('CRITIC')) return 'Crítica';
+  if (s.includes('ALT') || s.includes('GRAV')) return 'Alta';
+  if (s.includes('MED')) return 'Média';
+  if (s.includes('BAIX') || s.includes('LEV')) return 'Baixa';
+  return 'Média';
+};
+

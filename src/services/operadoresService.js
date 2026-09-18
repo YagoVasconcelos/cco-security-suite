@@ -1,8 +1,16 @@
 import * as XLSX from 'xlsx';
+import databaseTemplate from '../../data/database_template.json';
 
 const STORAGE_KEY = 'cco_operadores_base';
 
-export const OPERADORES_INICIAIS = [];
+export const OPERADORES_INICIAIS = (databaseTemplate && Array.isArray(databaseTemplate.operadores) && databaseTemplate.operadores.length > 0)
+  ? databaseTemplate.operadores
+  : [
+      { id: 'op-01', nome: 'Op. Yago Marinho', matricula: 'CCO-2535', cargo: 'Tec. Segurança Eletrônica', turno: 'Comercial Adm', status: 'Ativo', observacoes: 'Administrador e Responsável Técnico CCO', dataCadastro: '2026-01-01' },
+      { id: 'op-02', nome: 'Operador CCO Líder', matricula: 'CCO-1001', cargo: 'Operador CCO Líder', turno: '12x36 Diurno', status: 'Ativo', observacoes: 'Central de Operações de Segurança', dataCadastro: '2026-01-01' },
+      { id: 'op-03', nome: 'Op. Central CFTV', matricula: 'CCO-1002', cargo: 'Operador CFTV', turno: '12x36 Noturno', status: 'Ativo', observacoes: 'Monitoramento contínuo de CFTV', dataCadastro: '2026-01-01' },
+      { id: 'op-04', nome: 'Supervisor CCO', matricula: 'CCO-1003', cargo: 'Supervisor Operacional', turno: '12x36 Diurno', status: 'Ativo', observacoes: 'Supervisão de Efetivo e Ocorrências', dataCadastro: '2026-01-01' }
+    ];
 
 /**
  * Carrega a lista completa de operadores do backend local com fallback ao localStorage
@@ -41,7 +49,7 @@ export async function carregarOperadores() {
     const salvo = localStorage.getItem(STORAGE_KEY);
     if (salvo !== null) {
       const parsed = JSON.parse(salvo);
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed;
       }
     }
@@ -49,7 +57,7 @@ export async function carregarOperadores() {
     console.error('Erro ao ler operadores do localStorage:', e);
   }
 
-  return [];
+  return OPERADORES_INICIAIS;
 }
 
 /**
@@ -60,12 +68,12 @@ export function obterOperadoresCache() {
     const salvo = localStorage.getItem(STORAGE_KEY);
     if (salvo !== null) {
       const parsed = JSON.parse(salvo);
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed;
       }
     }
   } catch (e) {}
-  return [];
+  return OPERADORES_INICIAIS;
 }
 
 /**

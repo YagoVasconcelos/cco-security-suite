@@ -1516,7 +1516,11 @@ export default function GestaoRfidView() {
                     <option value="CCO">CCO Central</option>
                     <option value="P1">Portaria 1 (P1)</option>
                     <option value="P2">Portaria 2 (P2)</option>
-                    <option value="RONDA">Ronda Operacional</option>
+                    <option value="Caldeira">Caldeira</option>
+                    <option value="Cobertura">Cobertura</option>
+                    {formVincular.portaria && !['CCO', 'P1', 'P2', 'Caldeira', 'Cobertura'].includes(formVincular.portaria) && (
+                      <option value={formVincular.portaria}>{formVincular.portaria}</option>
+                    )}
                   </select>
                 </div>
 

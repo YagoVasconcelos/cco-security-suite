@@ -1,16 +1,16 @@
-# CCO Security Suite Rev 1.0 | TecPrimus Soluções Tecnológicas
-**Desenvolvedor:** Yago Marinho | **Empresa:** TecPrimus Soluções Tecnológicas | **Versão:** Rev 1.0 (2026)  
+# CCO Security Suite Rev 1.1 | TecPrimus Soluções Tecnológicas
+**Desenvolvedor:** Yago Marinho | **Empresa:** TecPrimus Soluções Tecnológicas | **Versão:** Rev 1.1 (2026)  
 **Contato:** [LinkedIn](https://www.linkedin.com/in/yago-marinho-b8a309141/) | [GitHub](https://github.com/YagoVasconcelos) | **E-mail:** tecprimus2021@outlook.com
 
 ---
 
-# Manual de Operação do Usuário (Central de Controle Operacional) — Rev 1.0
+# Manual de Operação do Usuário (Central de Controle Operacional) — Rev 1.1
 
 ## 1. Introdução e Boas-Vindas
 
 Prezado(a) Operador(a) da **Central de Controle Operacional (CCO)**,
 
-Seja bem-vindo ao **CCO Security Suite (Rev 1.0)**, a plataforma corporativa integrada de inteligência e segurança desenvolvida para a gestão patrimonial, controle de acessos, registro de sinistros e monitoramento analítico de plantas industriais, complexos corporativos, centros logísticos e condomínios empresariais.
+Seja bem-vindo ao **CCO Security Suite (Rev 1.1)**, a plataforma corporativa integrada de inteligência e segurança desenvolvida para a gestão patrimonial, controle de acessos, registro de sinistros e monitoramento analítico de plantas industriais, complexos corporativos, centros logísticos e condomínios empresariais.
 
 O objetivo deste manual é fornecer um guia prático, visual e completo de todos os módulos do sistema, orientando você passo a passo sobre como emitir ocorrências, controlar o fluxo de colaboradores e visitantes, custodiar chaves e gerar relatórios gerenciais com máxima eficiência, rastreabilidade e conformidade com as diretrizes da governança corporativa.
 
@@ -29,61 +29,96 @@ O sistema opera como aplicativo desktop nativo no Windows, iniciando automaticam
 * 👥 **Ferramenta 3 (Controle de Visitantes):** Painel visual de slots por portaria com cronômetro de permanência e checkout.
 * 🔑 **Ferramenta 4 (Controle RFID / Chaves):** Claviculário digital e custódia de chaves mestras e tags veiculares de docas.
 * ⚙️ **Configurações:** Área restrita para supervisores e líderes de turno (protegida por Senha Mestra), contendo parametrizações e o **Painel de Backup & Restauração (Merge Inteligente)**.
-* ℹ️ **Sobre o Sistema:** Informações de autoria, versão Rev 1.0, direitos autorais e contatos de suporte técnico.
+* ℹ️ **Sobre o Sistema:** Informações de autoria, versão Rev 1.1, direitos autorais e contatos de suporte técnico.
 
 ---
 
 ## 2. Dashboard Executivo & Inteligência Analítica
 
-O Dashboard Executivo é a central de comando do sistema, reunindo os principais indicadores em tempo real para apoiar a liderança da CCO e a fiscalização de segurança nas tomadas de decisão.
+O Dashboard Executivo é o centro nervoso da CCO Security Suite, projetado sob o padrão de **4 Dashboards Paisagem Independentes** (A4 Landscape com paginação limpa). O painel oferece inteligência situacional em tempo real, suporte à tomada de decisão para gerência e diretoria, e isolamento total de filtros para conformidade de impressão.
 
 ![Dashboard Executivo e Indicadores](./prints/dashboard.png)
 
-### 2.1 Indicadores Principais (Cards de KPIs)
-No topo do Dashboard, os cards visuais destacam o cenário operacional em tempo real:
-1. **Total de Ocorrências (RO):** Quantidade consolidada de registros de desvios e incidentes no período selecionado.
-2. **Inadimplência Crachás:** Quantidade de credenciais avariadas ou extraviadas no período.
-3. **Cartões Pendentes:** Cartões provisórios que ultrapassaram o limite de devolução (>24h).
-4. **Acessos Visitantes:** Volume total de liberações de visitantes efetuadas.
-5. **Provisórios Ativos:** Total de cartões temporários que se encontram atualmente em uso dentro do complexo.
+### 2.1 Os 4 Módulos do Dashboard Executivo (Visão Paisagem Dedicada)
 
-### 2.2 Barra de Filtros do Dashboard
-* **Filtros de Período:** Botões de clique rápido (*Hoje*, *7 Dias*, *30 Dias*, *Mês Atual*, *Ano*) e seletor *Personalizado*.
-* **Filtros Dinâmicos:** Permitem refinar os dados por *Turno Operacional*, *Operador Responsável* e *Localização / Prédio*.
-* **Status do Sistema & Terminal:** Identificação do destino das exportações (`cco/exports`) e indicador em tempo real de `Sistema Operante`.
+A suíte organiza os dados corporativos em 4 módulos estruturados que podem ser visualizados de forma unificada (4 páginas contínuas) ou individualmente através das abas superiores de navegação:
 
-![Detalhamento Analítico - As 4 Tabelas de Gestão](./prints/dashboard_detalhamento1.png)
+1. **Dashboard 1: Ocorrências & Segurança Patrimonial (Página 1 Paisagem)**
+   * **Indicadores Consolidados:** Total de Ocorrências (ROs), Incidentes Críticos & Graves (ação imediata), Ocorrências Médias e de Rotina, Tempo Médio de Resposta e Taxa de Formalização com Evidências Fotográficas.
+   * **Painel Interativo de Gravidade & Severidade:** Gráficos de barras em gradiente colorido com drill-down por clique:
+     * 🔴 **Crítica:** Incidentes graves de alta prioridade.
+     * 🟠 **Alta:** Desvios com impacto operacional que requerem apuração detalhada.
+     * 🟡 **Média:** Ocorrências de rotina e inconformidades padrão.
+     * 🔵 **Baixa:** Notificações leves e registros preventivos.
+     * *Funcionalidade Drill-down:* Ao clicar em qualquer um dos cards de severidade, as tabelas analíticas inferiores são filtradas instantaneamente para a gravidade selecionada.
+   * **Detalhamento Analítico (4 Tabelas Exclusivas de Ocorrências):**
+     * *Incidência por Prédio / Localidade:* Concentração de eventos por instalação física da planta.
+     * *Classificação por Tópico de Ocorrência:* Distribuição pelas 16 naturezas padrão de desvio.
+     * *Produtividade CCO por Operador:* Rastreabilidade de lançamentos com destaque do operador em plantão.
+     * *Últimas Ocorrências Registradas:* Histórico recente protocolado com badges coloridos de gravidade.
 
-### 2.3 Detalhamento Analítico (As 4 Tabelas de Gestão)
-1. **Alerta de Reincidência (Top Usuários):**
-   * *Objetivo:* Identificar colaboradores com reincidência de esquecimento ou extravio de crachás no mês.
-   * *Colunas:* Nome do Colaborador, Empresa Contratada e Total de Acessos Provisórios no Período.
-   * *Regra de Negócio:* Aplica destaque compulsório aos colaboradores que ultrapassaram o teto de 3 acessos mensais.
+2. **Dashboard 2: Provisórios & Cautelas de Acesso (Página 2 Paisagem)**
+   * **Escaninho Físico de Portaria (20 Slots):** Monitoramento visual dos escaninhos de crachás temporários divididos entre **Portaria 1 (Slots 01 a 10)** e **Portaria 2 (Slots 11 a 20)**, com cálculo automático da taxa de ocupação física.
+   * **Controle de Circulação:** Contagem em tempo real de cautelas ativas, crachás pendentes que ultrapassaram o expediente e devoluções realizadas na data.
+   * **Ranking de Reincidência (Regra dos 3 Acessos):** Identificação imediata de colaboradores com 3 ou mais retiradas no mês para aplicação de advertência e emissão de 2ª via definitiva.
+   * **Auditoria de Perdas & Extravios:** Rastreabilidade de cartões com motivo "PERDEU" ou retidos.
 
-2. **Inadimplência de Credenciais (Avarias & Perdas):**
-   * *Objetivo:* Controle patrimonial estrito de perdas e avarias para encaminhamento aos setores de Recursos Humanos e Facilities.
-   * *Colunas:* Nome do Colaborador, Empresa Contratada, Data do Fato e Motivo/Tipo de Perda.
-   * *Regra de Compliance e Neutralidade Financeira:* **Nenhum valor financeiro (R$) é exibido nesta tela**. A cobrança e eventual ressarcimento seguem exclusivamente os fluxos e formulários administrativos externos da organização contratante.
+3. **Dashboard 3: Visitantes & Fluxo de Portarias (Página 3 Paisagem)**
+   * **Censo em Tempo Real:** Visitantes com permanência ativa dentro do complexo, entradas registradas no dia e saídas confirmadas (checkout).
+   * **Ranking de Anfitriões / Destinos:** Apuração dos colaboradores internos e departamentos que mais recebem visitas externas no complexo.
+   * **Conformidade de Identificação:** Taxa percentual de cadastros com documento oficial e veículo regularizado.
+   * **Extravios de Credenciais de Visitante:** Monitoramento de crachás de visitantes não devolvidos na saída.
 
-3. **Produtividade CCO por Turno & Operador:**
-   * *Objetivo:* Rastreabilidade operacional de lançamentos por escala de serviço e matrícula do operador.
-   * *Colunas:* Operador CCO, Matrícula, Turno e Quantidade de Registros Gerados.
+4. **Dashboard 4: RFID & Contabilidade de Acessos (Página 4 Paisagem)**
+   * **Inventário Físico de Tags:** Total de cartões RFID cadastrados no claviculário, divididos entre cartões rotativos de prestadores e cartões permanentes de efetivo.
+   * **Balanço Patrimonial & Recuperação:** Indicador de cartões ativos, bloqueados, extraviados e ressarcidos, com taxa percentual de recuperação patrimonial.
 
-4. **Cartões Provisórios Pendentes (>24h):**
-   * *Objetivo:* Alerta prioritário de crachás retidos fora da portaria além do expediente regulamentar.
-   * *Colunas:* Nome do Colaborador, Empresa, Número do Provisório, Portaria de Retirada (P1/P2) e Horário de Liberação.
+---
 
-![Gráficos de Severidade e Fluxo Operacional](./prints/dashboard_detalhamento2.png)
+### 2.2 Política Financeira Fixa de 2ª Via (R$ 30,00) & Modal de Cobrança
 
-### 2.4 Gráficos Estratégicos & Acesso Rápido
-* **Distribuição por Severidade:** Gráfico circular dividindo as ocorrências em *Baixa*, *Média*, *Alta* e *Crítica*.
-* **Fluxo Operacional por Portaria (P1 vs P2):** Comparativo em barras do volume de atendimentos e movimentações entre a Portaria Principal 1 e a Portaria Secundária 2.
-* **Cards de Acesso Rápido:** Atalhos operacionais integrados com teclas de atalho do teclado (`F1` para Ocorrências, `F2` para Provisórios, `F3` para Visitantes e `F4` para Chaves/RFID).
+Para coibir o esquecimento habitual, o extravio indiscriminado de credenciais e garantir o ressarcimento de custos materiais, a CCO Security Suite adota a taxa financeira padronizada de **R$ 30,00** por ocorrência de perda ou dano irreparável em todos os módulos (Provisórios, RFID e Visitantes).
 
-### 2.5 Botões de Exportação do Dashboard
-No canto superior direito da tela, você encontra os botões oficiais de exportação:
-* **Botão `Relatório PDF`:** Compila o Dashboard completo em formato A4 institucional, com cabeçalho oficial, gráficos, tabelas protegidas contra quebra de página e bloco de assinaturas formais (Gerência da Planta, Coordenação de Segurança e Fiscalização do Contrato).
-* **Botão `Base Excel`:** Gera e baixa imediatamente uma planilha formatada (`.xlsx`) com abas estruturadas de ocorrências, provisórios e visitantes para auditorias e cruzamento de dados.
+* **Regra de Aplicação:** Sempre que um crachá provisório, tag RFID ou credencial de visitante é registrado com a condição `PERDEU`, `EXTRAVIADO` ou `DANIFICADO`, o sistema contabiliza o débito financeiro fixo de **R$ 30,00**.
+* **Modal de Cobrança Financeira Integrado:**
+  * Localizado no Dashboard através do botão **Cobrança 2ª Via**.
+  * Apresenta o consolidado de perdas pendentes, valor total a ressarcir e valor já quitado.
+  * Permite ao supervisor selecionar qualquer ocorrência de perda e emitir instantaneamente a **Ficha Oficial de Cobrança / Ressarcimento de 2ª Via em PDF**, com protocolo formal, identificação do colaborador, empresa prestadora, data do evento, portaria de custódia e o valor tabelado de R$ 30,00 para encaminhamento ao RH e Financeiro da contratada.
+
+---
+
+### 2.3 Separação Lógica Estrita dos Filtros Inteligentes
+
+Para eliminar distorções estatísticas entre módulos distintos, o Dashboard adota segregação estrita de escopo:
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                  SEPARAÇÃO LÓGICA REGRADA DE FILTROS CCO                     │
+├─────────────────────────┬────────────────────────────────────────────────────┤
+│ 1. Filtro Temporal      │ Afeta TODOS os 4 Dashboards (Data de corte única)  │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│ 2. Filtros Ocorrências  │ Afetam APENAS o Módulo 1 (Ocorrências):            │
+│                         │ • Prédio / Instalação (17 prédios oficiais)        │
+│                         │ • Área / Setor (Áreas dinâmicas do prédio)         │
+│                         │ • Tópico da Ocorrência (16 naturezas oficiais)     │
+│                         │ • Gravidade / Severidade (Crítica/Alta/Média/Baixa)│
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│ 3. Filtro de Empresa    │ Afeta APENAS os Módulos 2, 3 e 4:                  │
+│                         │ • Provisórios, Visitantes e Credenciais RFID       │
+│                         │ (Empresa NUNCA mascara ocorrências de segurança)   │
+└─────────────────────────┴────────────────────────────────────────────────────┘
+```
+
+* **Botão Redefinir Filtros:** Restaura todos os filtros para os valores padrão de fábrica (*Mês Atual*, *Todos os Prédios*, *Todas as Áreas*, *Todos os Tópicos*, *Todas as Gravidades* e *Todas as Empresas*).
+* **Navegação por Abas:** Permite alternar instantaneamente entre a visualização de todos os módulos (`Visão Completa`) ou focar em um único dashboard operacional (`1. Ocorrências`, `2. Provisórios`, `3. Visitantes`, `4. RFID`).
+
+---
+
+### 2.4 Exportação Executiva e Impressão de Alta Resolução
+
+No cabeçalho do Dashboard, o operador dispõe dos recursos oficiais de exportação de dados:
+* **Relatório PDF Consolidado (Modo Paisagem):** Gera o documento executivo em formato A4 Paisagem de altíssima resolução, contendo sumário executivo, gráficos vetoriais SVG (donut e barras), tabelas de detalhamento e bloco de assinaturas para aprovação da Gerência de Site, Coordenação de Segurança e Fiscalização de Contrato. Respeita rigorosamente a aba ativa (se filtrado em Ocorrências, exporta apenas a página 1 dedicada).
+* **Base Consolidada em Excel (.xlsx):** Gera arquivo com planilhas segmentadas em abas estruturadas com cabeçalho corporativo, dados brutos e formatação profissional de colunas para cruzamento em Business Intelligence.
 
 ---
 
@@ -124,7 +159,7 @@ Na tabela **Pessoas Envolvidas / Identificação**, adicione os envolvidos:
 
 ### 3.4 Padrão Corporativo do Relatório de Ocorrência (RO) e Impressão Limpa
 
-O documento oficial de visualização e impressão (`@media print`) segue rigorosamente a **Estrutura Linear Estrita Oficial (Rev 1.0)**, sem desalinhamentos e isento de poluição visual:
+O documento oficial de visualização e impressão (`@media print`) segue rigorosamente a **Estrutura Linear Estrita Oficial (Rev 1.1)**, sem desalinhamentos e isento de poluição visual:
 
 1. **Topo (Cabeçalho Institucional Azul Escuro):**
    * Banner institucional com fundo escuro (`#0f172a`) e borda inferior azul corporativo (`#2563eb`).
@@ -228,19 +263,38 @@ O módulo de configurações permite parametrizar o sistema e executar rotinas d
 
 ![Painel Administrativo de Configurações e Senha Mestra](./prints/configuracoes.png)
 
-### 7.1 Bloqueio por Senha Mestra
-1. Ao clicar em **Configurações** no menu lateral, o sistema solicita a **Senha Mestra**.
-2. Digite a senha oficial (senha padrão inicial: **`admin123`**) e confirme.
-3. Caso a senha esteja correta, o painel restrito é liberado; caso contrário, o acesso é bloqueado.
+### 7.1 Bloqueio e Blindagem de Segurança (safeStorage DPAPI & PBKDF2)
+1. **Acesso Protegido:** Ao clicar em **Configurações** no menu lateral, o sistema solicita a **Senha Mestra** administrativa.
+2. **Criptografia Nível Bancário (Zero Senhas em Texto Plano):**
+   * O sistema implementou o módulo `cryptoHelper.cjs` integrado ao processo principal do Electron.
+   * A senha mestra é protegida nativamente pelo **Windows Data Protection API (DPAPI)** através do `safeStorage` do Electron. Em ambientes sem DPAPI disponível, o sistema emprega derivação criptográfica **PBKDF2 com Salt aleatório de 16 bytes e 100.000 iterações de HMAC-SHA256**.
+   * Nenhum arquivo em disco armazena senhas legíveis por humanos.
+3. **Fluxo de Alteração de Senha Mestra:**
+   * Para alterar a senha, acesse a aba **Segurança & Senha Mestra**.
+   * O sistema exige a confirmação da senha atual antes de aceitar a nova credencial.
+   * A nova credencial passa por validação de tamanho mínimo e complexidade e é gravada de forma criptografada imediatamente.
 
-### 7.2 Arquitetura de Usuários & Gerenciamento de Efetivo
+---
+
+### 7.2 Gerenciamento Dinâmico de Cargos e Funções
+A CCO Security Suite dispõe de um módulo dedicado para centralização da estrutura hierárquica e operacional do complexo:
+* **Aba "Cargos e Funções":** Permite cadastrar, editar e remover nomenclaturas de cargos corporativos (ex: *Supervisor de Operações*, *Operador de CCO I/II*, *Vigilante Líder*, *Vigilante Patrimonial*, *Bombeiro Civil*, *Técnico de Segurança*, *Fiscal de Piso*).
+* **Reatividade Global em 100% dos Formulários:**
+  * O cadastro de **Operadores CCO** consome dinamicamente os cargos ativos cadastrados.
+  * O cadastro de **Vigilantes de Campo** consome a mesma matriz centralizada.
+  * O formulário de **Envolvidos em Ocorrências (RO)** oferece preenchimento e autocomplete baseado nas funções homologadas.
+  * Alterações ou novos cargos disparam o evento global `cco_cargos_changed`, atualizando instantaneamente todos os formulários da suíte sem necessidade de reiniciar a aplicação.
+
+---
+
+### 7.3 Arquitetura de Usuários & Gerenciamento de Efetivo
 A tela de configurações possui abas dedicadas para o cadastro e separação de funções:
-* **Operadores CCO (Central):** Cadastro de membros com acesso ao software desktop (Nome, Matrícula, Escala de Turno).
+* **Operadores CCO (Central):** Cadastro de profissionais com acesso ao software desktop (Nome, Matrícula, Cargo, Escala de Turno e status Ativo/Inativo).
 * **Efetivo de Vigilância de Campo:** Cadastro de vigilantes alocados nas Portarias 1 e 2 e Ronda, utilizados para vínculo operacional nas credenciais provisórias.
 
 ---
 
-### 7.3 Responsáveis do Site & Diretório de Salvamento em Rede (Auditoria & Compliance)
+### 7.4 Responsáveis do Site & Diretório de Salvamento em Rede (Auditoria & Compliance)
 
 O CCO Security Suite permite a parametrização dos responsáveis corporativos cujos nomes e cargos constam formalmente no rodapé e blocos de assinatura de todos os Relatórios de Ocorrência (RO) e Relatórios Executivos em PDF, além do caminho físico onde os arquivos serão arquivados:
 
@@ -263,14 +317,29 @@ O CCO Security Suite permite a parametrização dos responsáveis corporativos c
    * Clicar no botão **`Abrir Pasta (Explorer)`** (ícone com seta externa) para abrir instantaneamente o diretório no Windows Explorer e conferir os arquivos gerados.
 3. Clique em **Salvar Parâmetros** no rodapé para persistir as alterações.
 
-#### B. Garantia de Redundância e Salvamento Concorrente:
+#### B. Nomenclatura Dinâmica Oficial de Arquivos Exportados:
+Para garantir perfeita indexação no Windows Explorer e em backups corporativos, todos os documentos gerados pelo sistema obedecem a padrões rígidos de nomenclatura:
+* **Relatório de Ocorrência (RO):** `Ocorrência [Protocolo RO] - [Tópico] & [Gravidade] - [Data].pdf`  
+  *(Exemplo: `Ocorrência RO-2026-004 - USO INDEVIDO DE EPI & MÉDIA - 18-09-2026.pdf`)*
+* **Relatório Executivo Consolidado:** `Relatorio_Executivo_CCO_[Periodo]_[Data].pdf`  
+  *(Exemplo: `Relatorio_Executivo_CCO_mes_atual_2026-09-18.pdf`)*
+* **Cobrança de 2ª Via / Ressarcimento:** `Cobranca_2via_Credencial_[Colaborador]_[Data].pdf`
+* **Backup Geral do Sistema:** `backup_cco_YYYY-MM-DD_HH-mm-ss.json`
+
+#### C. Garantia de Redundância e Salvamento Concorrente:
 * **Dupla Proteção:** Sempre que um Relatório de Ocorrência é finalizado ou um Relatório Executivo é exportado, o sistema salva automaticamente uma via no diretório configurado E garante uma cópia inviolável na pasta segura do sistema em `Documentos\CCO Security Suite\exports`.
 * **Resolução Automática:** Caso uma pasta de rede esteja temporariamente desconectada ou sem permissão de escrita, o sistema notifica o operador via aviso em tela e preserva o documento intacto na pasta Documentos, eliminando qualquer risco de perda de relatório.
 * **Persistência Centralizada:** As configurações são gravadas fisicamente no arquivo `data/responsaveis.json` e espelhadas na base local (`localStorage`), disparando notificações em tempo real para todos os módulos abertos.
 
 ---
 
-### 7.4 Módulo de Backup & Restauração (Merge Inteligente)
+### 7.5 Padronização Visual das Tabelas (`SortableHeader`) e Acessibilidade
+* **Ordenação Bidirecional em 100% das Tabelas:** Todas as telas de listagem (Ocorrências, Provisórios, Visitantes, RFID, Operadores e Vigilantes) contam com o componente padronizado `SortableHeader`, exibindo setinhas interativas de ordenação alfabética, cronológica e numérica para auditorias ágeis.
+* **Gerenciador de Foco e Atalhos (`ModalKeyboardManager`):** Todas as janelas modais suportam fechamento imediato via tecla `ESC`, submissão rápida via tecla `Enter` e controle refinado de acessibilidade sem perda de dados digitados.
+
+---
+
+### 7.6 Módulo de Backup & Restauração (Merge Inteligente)
 
 O CCO Security Suite dispõe de uma central moderna e segura de salvamento e recuperação de dados na aba de Configurações:
 
@@ -322,11 +391,11 @@ O **CCO Security Suite** é uma solução corporativa desenvolvida e homologada 
 
 * **Desenvolvedor & Arquiteto:** Yago Marinho
 * **Empresa:** TecPrimus Soluções Tecnológicas
-* **Versão Oficial:** Rev 1.0 (Release Oficial de Produção - 2026)
+* **Versão Oficial:** Rev 1.1 (Release Oficial de Produção - 2026)
 * **LinkedIn:** [https://www.linkedin.com/in/yago-marinho-b8a309141/](https://www.linkedin.com/in/yago-marinho-b8a309141/)
 * **GitHub:** [https://github.com/YagoVasconcelos](https://github.com/YagoVasconcelos)
 * **E-mail de Suporte:** `tecprimus2021@outlook.com`
 * **Aviso Legal & Propriedade Intelectual:** Obra protegida nos termos da Lei nº 9.609/1998 e Lei nº 9.610/1998 (Copyright © 2026). Todos os direitos reservados à TecPrimus Soluções Tecnológicas. É estritamente vedada a reprodução desautorizada, engenharia reversa ou distribuição sem licenciamento formal.
 
 ---
-*Manual oficial de operação homologado para a versão Rev 1.0.*
+*Manual oficial de operação homologado para a versão Rev 1.1.*

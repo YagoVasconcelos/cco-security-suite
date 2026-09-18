@@ -26,16 +26,20 @@ import {
   ExternalLink,
   DollarSign,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  Edit3
 } from 'lucide-react';
 import CardSlotsVisitantes from './CardSlotsVisitantes';
 import NovoVisitanteModal from './NovoVisitanteModal';
+import EditarVisitanteModal from './EditarVisitanteModal';
+import { salvarPessoaUnificada } from '../../services/baseUnificadaService';
 import {
   carregarVisitantes,
   salvarVisitantes,
   obterVisitantesLocais,
   registrarEntradaVisitante,
   registrarSaidaVisitante,
+  editarRegistroVisitante,
   registrarIsencaoVisitante,
   registrarPerdaVisitante,
   marcarVisitanteComoPago,
@@ -123,6 +127,8 @@ export default function ControleVisitantesView() {
 
   // Modal Baixa / Saída do Visitante
   const [visitanteParaBaixa, setVisitanteParaBaixa] = useState(null);
+  // Modal de Edição Completa (CRUD)
+  const [visitanteParaEditar, setVisitanteParaEditar] = useState(null);
   const [statusSaidaCredencial, setStatusSaidaCredencial] = useState('DEVOLVIDO');
   const [numeroBO, setNumeroBO] = useState('');
   const [dataBO, setDataBO] = useState('');
@@ -431,6 +437,32 @@ export default function ControleVisitantesView() {
     setDetalhesAnfitriao(dados);
   };
 
+  // Abrir modal de edição do visitante
+  const abrirEditarVisitante = (item) => {
+    setVisitanteParaEditar(item);
+  };
+
+  // Salvar edições do visitante
+  const handleSalvarEdicaoVisitante = (dadosEditados) => {
+    try {
+      const novaLista = editarRegistroVisitante(dadosSeguros, dadosEditados.id, dadosEditados);
+      setVisitantes(novaLista);
+
+      if (dadosEditados.visitante && dadosEditados.visitante.trim()) {
+        salvarPessoaUnificada({
+          nome: dadosEditados.visitante.trim(),
+          empresa: dadosEditados.empresa,
+          rg: dadosEditados.documento
+        });
+      }
+
+      showToast(`✓ Visitante ${dadosEditados.visitante} (Cartão ${dadosEditados.cartao}) atualizado com sucesso!`, 'success');
+      setVisitanteParaEditar(null);
+    } catch (err) {
+      showToast(`Erro ao editar visitante: ${err.message}`, 'error');
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
       {/* Toast Notification */}
@@ -734,7 +766,7 @@ export default function ControleVisitantesView() {
         <div className="w-full flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-950/90 border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
           <div
             onClick={() => handleSort('cartao')}
-            className="w-14 shrink-0 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
+            className="w-24 shrink-0 pr-2 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
             title="Clique para ordenar por Cartão"
           >
             <span>Cartão</span>
@@ -743,7 +775,7 @@ export default function ControleVisitantesView() {
 
           <div
             onClick={() => handleSort('visitante')}
-            className="flex-1 min-w-0 pr-2 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
+            className="flex-1 min-w-[200px] pr-3 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
             title="Clique para ordenar por Visitante & Empresa"
           >
             <span>Visitante & Empresa</span>
@@ -786,7 +818,7 @@ export default function ControleVisitantesView() {
             {renderSortIndicator('motivo')}
           </div>
 
-          <div className="w-28 shrink-0 text-right">Ação</div>
+          <div className="w-36 shrink-0 text-right">Ações</div>
         </div>
 
         {/* CORPO DA LISTA (LINHAS FLEX w-full) */}
@@ -818,8 +850,8 @@ export default function ControleVisitantesView() {
                   }`}
                 >
                   {/* Cartão */}
-                  <div className="w-14 shrink-0">
-                    <span className={`font-mono text-xs font-extrabold px-2 py-1 rounded-md border inline-block text-center ${
+                  <div className="w-24 shrink-0 pr-2 flex items-center">
+                    <span className={`font-mono text-xs font-extrabold px-2.5 py-1 rounded-md border inline-block text-center min-w-[60px] ${
                       isPerdido
                         ? 'bg-amber-950/60 text-amber-200 border-amber-800/60'
                         : isPago
@@ -835,7 +867,7 @@ export default function ControleVisitantesView() {
                   </div>
 
                   {/* Visitante & Empresa */}
-                  <div className="flex-1 min-w-0 pr-2">
+                  <div className="flex-1 min-w-[200px] pr-3">
                     <p className="font-bold text-slate-100 text-xs truncate">
                       {item.visitante}
                     </p>
@@ -912,7 +944,7 @@ export default function ControleVisitantesView() {
                   </div>
 
                   {/* Status / Ações */}
-                  <div className="w-28 shrink-0 flex items-center justify-end text-right">
+                  <div className="w-36 shrink-0 flex items-center justify-end gap-1.5 text-right">
                     {isPerdido ? (
                       <button
                         type="button"
@@ -959,6 +991,16 @@ export default function ControleVisitantesView() {
                         Encerrado
                       </span>
                     )}
+
+                    {/* Botão de Edição Completa */}
+                    <button
+                      type="button"
+                      onClick={() => abrirEditarVisitante(item)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-blue-600/20 text-slate-400 hover:text-blue-300 border border-slate-700 hover:border-blue-500/40 transition-colors cursor-pointer shrink-0"
+                      title="Editar dados do visitante"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               );
@@ -973,6 +1015,16 @@ export default function ControleVisitantesView() {
         onClose={() => setIsModalOpen(false)}
         onSalvar={handleSalvarNovoVisitante}
         cartoesOcupados={cartoesOcupados}
+      />
+
+      {/* MODAL DE EDIÇÃO COMPLETA DO VISITANTE */}
+      <EditarVisitanteModal
+        isOpen={!!visitanteParaEditar}
+        visitante={visitanteParaEditar}
+        onClose={() => setVisitanteParaEditar(null)}
+        onSalvar={handleSalvarEdicaoVisitante}
+        listaVigilantes={listaVigilantes}
+        listaMotivos={listaMotivos}
       />
 
       {/* MODAL DE BAIXA DE SAÍDA DO VISITANTE COM CAPTURA DE HORÁRIO E DESTINO */}

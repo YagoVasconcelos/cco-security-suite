@@ -51,7 +51,9 @@ import {
   AREAS_CCO,
   TOPICOS_OCORRENCIA,
   obterAreasDoPredio,
-  MAPEAMENTO_PREDIO_AREAS_CCO
+  obterPrediosAtivos,
+  MAPEAMENTO_PREDIO_AREAS_CCO,
+  normalizarGravidade
 } from '../../constants/taxonomiaCco';
 import {
   carregarOperadores,
@@ -70,6 +72,9 @@ export default function RelatorioOcorrenciaForm() {
 
   const [listaOperadores, setListaOperadores] = useState(() => {
     return obterNomesOperadoresAtivos();
+  });
+  const [listaPredios, setListaPredios] = useState(() => {
+    return obterPrediosAtivos();
   });
 
   // 1. Dados Gerais com Taxonomia Oficial CCO
@@ -92,6 +97,15 @@ export default function RelatorioOcorrenciaForm() {
       operador: opInicial
     };
   });
+
+  // Blindagem da lista de operadores: garante que o operador selecionado nunca desapareça da lista
+  const opcoesOperadores = useMemo(() => {
+    const base = Array.isArray(listaOperadores) ? [...listaOperadores] : [];
+    if (formData.operador && !base.includes(formData.operador)) {
+      base.unshift(formData.operador);
+    }
+    return base;
+  }, [listaOperadores, formData.operador]);
 
   // 2. Tabela de Envolvidos
   const [envolvidos, setEnvolvidos] = useState([
@@ -222,9 +236,9 @@ export default function RelatorioOcorrenciaForm() {
         const tB = String(b.titulo || b.topico || '').toLowerCase();
         comparison = tA.localeCompare(tB, 'pt-BR', { sensitivity: 'base' });
       } else if (sortField === 'gravidade') {
-        const gravidadePeso = { 'Crítica': 5, 'Grave': 4, 'Alta': 3, 'Média': 2, 'Baixa': 1 };
-        const pesoA = gravidadePeso[a.gravidade] || 0;
-        const pesoB = gravidadePeso[b.gravidade] || 0;
+        const gravidadePeso = { 'Crítica': 5, 'Alta': 4, 'Média': 3, 'Baixa': 1 };
+        const pesoA = gravidadePeso[normalizarGravidade(a.gravidade)] || 0;
+        const pesoB = gravidadePeso[normalizarGravidade(b.gravidade)] || 0;
         comparison = pesoA - pesoB;
       }
 
@@ -357,8 +371,16 @@ export default function RelatorioOcorrenciaForm() {
       }
     };
 
+    const handleTaxonomiaChanged = () => {
+      setListaPredios(obterPrediosAtivos());
+    };
+
     window.addEventListener('cco_operadores_changed', handleOperadoresChanged);
-    return () => window.removeEventListener('cco_operadores_changed', handleOperadoresChanged);
+    window.addEventListener('cco_taxonomia_changed', handleTaxonomiaChanged);
+    return () => {
+      window.removeEventListener('cco_operadores_changed', handleOperadoresChanged);
+      window.removeEventListener('cco_taxonomia_changed', handleTaxonomiaChanged);
+    };
   }, []);
 
   const carregarHistorico = async () => {
@@ -401,7 +423,7 @@ export default function RelatorioOcorrenciaForm() {
       return [...lista, formData.area];
     }
     return lista;
-  }, [formData.predio, formData.area]);
+  }, [formData.predio, formData.area, listaPredios]);
 
   const handleTopicoChange = (novoTopico) => {
     setFormData(prev => ({
@@ -978,7 +1000,7 @@ export default function RelatorioOcorrenciaForm() {
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium cursor-pointer truncate"
               >
                 <option value="">Selecione o Prédio...</option>
-                {PREDIOS_CCO.map((p) => (
+                {listaPredios.map((p) => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
@@ -1063,7 +1085,7 @@ export default function RelatorioOcorrenciaForm() {
                 onChange={(e) => handleInputChange('operador', e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium cursor-pointer truncate"
               >
-                {listaOperadores.map((op) => (
+                {opcoesOperadores.map((op) => (
                   <option key={op} value={op}>{op}</option>
                 ))}
               </select>
@@ -1845,15 +1867,19 @@ export default function RelatorioOcorrenciaForm() {
                           <p className="truncate text-xs text-slate-200" title={oc.titulo}>{oc.titulo || '(Sem título)'}</p>
                         </td>
                         <td className="py-2 px-2 text-center whitespace-nowrap">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            oc.gravidade === 'Crítica' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
-                            oc.gravidade === 'Grave' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
-                            oc.gravidade === 'Alta' ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30' :
-                            oc.gravidade === 'Baixa' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                            'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                          }`}>
-                            {oc.gravidade || 'Média'}
-                          </span>
+                          {(() => {
+                            const grav = normalizarGravidade(oc.gravidade);
+                            return (
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                grav === 'Crítica' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                                grav === 'Alta' ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30' :
+                                grav === 'Média' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                                'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                              }`}>
+                                {grav}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="py-2 px-1.5 text-center text-slate-400 font-mono text-xs">
                           {oc.envolvidos?.length || 0}

@@ -24,10 +24,12 @@ import {
   Timer,
   FileCheck,
   DollarSign,
-  ShieldAlert
+  ShieldAlert,
+  Edit3
 } from 'lucide-react';
 import CardSlotsVisualizer from './CardSlotsVisualizer';
 import NovaSaidaModal from './NovaSaidaModal';
+import EditarProvisorioModal from './EditarProvisorioModal';
 import {
   carregarRegistros,
   salvarRegistros,
@@ -36,11 +38,13 @@ import {
   registrarBaixaDevolucao,
   registrarPerdaProvisorio,
   marcarProvisorioComoPago,
+  editarRegistroProvisorio,
   calcularMetricasProvisorios,
   verificarRegraTresAcessos,
   formatarDataBr,
   LIMITE_ACESSOS_MES
 } from '../../services/provisoriosService';
+import { salvarPessoaUnificada } from '../../services/baseUnificadaService';
 
 
 
@@ -113,6 +117,8 @@ export default function ControleProvisoriosView() {
 
   // Modal de Confirmação de Baixa
   const [registroParaBaixa, setRegistroParaBaixa] = useState(null);
+  // Modal de Edição Completa (CRUD)
+  const [registroParaEditar, setRegistroParaEditar] = useState(null);
   const [dataBaixa, setDataBaixa] = useState('');
   const [horaBaixa, setHoraBaixa] = useState('');
   const [vigilanteRecebedor, setVigilanteRecebedor] = useState(() => {
@@ -224,9 +230,15 @@ export default function ControleProvisoriosView() {
   // Métricas automáticas consolidadas (incluindo Perdidos vs. Ressarcidos)
   const metricas = useMemo(() => calcularMetricasProvisorios(dadosSeguros), [dadosSeguros]);
 
-  // Cartões ocupados (status = NÃO DEVOLVIDO e não quitado)
+  // Cartões ocupados (itens em posse ativa do colaborador, sem devolução formal e não quitados/extraviados)
   const cartoesOcupados = dadosSeguros
-    .filter(r => r && (r.situacao === 'NÃO DEVOLVIDO' || r.situacao === 'NAO_DEVOLVIDO' || r.status === 'NAO_DEVOLVIDO') && !(r.situacao === 'PAGO' || r.status === 'PAGO'))
+    .filter(r => {
+      if (!r || !r.cartao) return false;
+      const isPerdido = r.situacao === 'PERDIDO' || r.status === 'PERDIDO' || r.observacao === 'PERDEU';
+      const isPago = r.situacao === 'PAGO' || r.status === 'PAGO';
+      if (isPerdido || isPago) return false;
+      return !r.dataDevolucao || r.situacao === 'NÃO DEVOLVIDO' || r.situacao === 'NAO_DEVOLVIDO' || r.status === 'NAO_DEVOLVIDO';
+    })
     .map(r => ({
       cartao: r.cartao,
       colaborador: r.colaborador,
@@ -248,9 +260,9 @@ export default function ControleProvisoriosView() {
 
       let matchSituacao = true;
       if (filtroSituacao === 'DEVOLVIDO') {
-        matchSituacao = (r.situacao === 'DEVOLVIDO' || r.status === 'DEVOLVIDO') && !(r.situacao === 'PAGO' || r.status === 'PAGO');
+        matchSituacao = Boolean(r.dataDevolucao) && (r.situacao === 'DEVOLVIDO' || r.status === 'DEVOLVIDO') && !(r.situacao === 'PAGO' || r.status === 'PAGO');
       } else if (filtroSituacao === 'NÃO DEVOLVIDO') {
-        matchSituacao = (r.situacao === 'NÃO DEVOLVIDO' || r.situacao === 'NAO_DEVOLVIDO' || r.status === 'NAO_DEVOLVIDO') && !(r.situacao === 'PERDIDO' || r.status === 'PERDIDO' || r.observacao === 'PERDEU');
+        matchSituacao = (!r.dataDevolucao || r.situacao === 'NÃO DEVOLVIDO' || r.situacao === 'NAO_DEVOLVIDO' || r.status === 'NAO_DEVOLVIDO') && !(r.situacao === 'PERDIDO' || r.status === 'PERDIDO' || r.observacao === 'PERDEU' || r.situacao === 'PAGO' || r.status === 'PAGO');
       } else if (filtroSituacao === 'PERDIDO') {
         matchSituacao = r.situacao === 'PERDIDO' || r.status === 'PERDIDO' || (r.situacao === 'NÃO DEVOLVIDO' && r.observacao === 'PERDEU');
       } else if (filtroSituacao === 'PAGO') {
@@ -391,6 +403,33 @@ export default function ControleProvisoriosView() {
       nome: nomeColaborador,
       ...resultado
     });
+  };
+
+  // Abrir modal de edição do registro provisório
+  const abrirEditarProvisorio = (item) => {
+    setRegistroParaEditar(item);
+  };
+
+  // Salvar edições do registro provisório
+  const handleSalvarEdicaoProvisorio = (dadosEditados) => {
+    try {
+      const novaLista = editarRegistroProvisorio(dadosSeguros, dadosEditados.id, dadosEditados);
+      setRegistros(novaLista);
+
+      if (dadosEditados.colaborador && dadosEditados.colaborador.trim()) {
+        salvarPessoaUnificada({
+          nome: dadosEditados.colaborador.trim(),
+          empresa: dadosEditados.empresa,
+          matricula: dadosEditados.matricula,
+          cargo: dadosEditados.cargo
+        });
+      }
+
+      showToast(`✓ Credencial ${dadosEditados.cartao} atualizada com sucesso!`, 'success');
+      setRegistroParaEditar(null);
+    } catch (err) {
+      showToast(`Erro ao editar credencial: ${err.message}`, 'error');
+    }
   };
 
   return (
@@ -692,7 +731,7 @@ export default function ControleProvisoriosView() {
         <div className="w-full flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-950/90 border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
           <div
             onClick={() => handleSort('cartao')}
-            className="w-14 shrink-0 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
+            className="w-24 shrink-0 pr-2 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
             title="Clique para ordenar por Cartão"
           >
             <span>Cartão</span>
@@ -701,7 +740,7 @@ export default function ControleProvisoriosView() {
 
           <div
             onClick={() => handleSort('colaborador')}
-            className="flex-1 min-w-0 pr-2 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
+            className="flex-1 min-w-[200px] pr-3 cursor-pointer hover:text-white transition-colors group flex items-center gap-1"
             title="Clique para ordenar por Colaborador & Empresa"
           >
             <span>Colaborador & Empresa</span>
@@ -744,7 +783,7 @@ export default function ControleProvisoriosView() {
             {renderSortIndicator('vigilante')}
           </div>
 
-          <div className="w-28 shrink-0 text-right">Ação</div>
+          <div className="w-36 shrink-0 text-right">Ações</div>
         </div>
 
         {/* CORPO DA LISTA (LINHAS FLEX w-full) */}
@@ -757,8 +796,10 @@ export default function ControleProvisoriosView() {
             registrosFiltrados.map((item) => {
               const isPerdido = item.situacao === 'PERDIDO' || item.status === 'PERDIDO' || (item.situacao === 'NÃO DEVOLVIDO' && item.observacao === 'PERDEU');
               const isPago = item.situacao === 'PAGO' || item.status === 'PAGO';
-              const isDevolvido = (item.situacao === 'DEVOLVIDO' || item.status === 'DEVOLVIDO') && !isPago && !isPerdido;
-              const isPendente = !isDevolvido && !isPago && !isPerdido;
+              // Um item SÓ é Devolvido se possuir data de devolução formalmente registrada E status DEVOLVIDO
+              const isDevolvido = !isPerdido && !isPago && Boolean(item.dataDevolucao) && (item.situacao === 'DEVOLVIDO' || item.status === 'DEVOLVIDO');
+              // Se não foi devolvido, nem perdido, nem pago: ESTÁ ATIVO / EM POSSE / NÃO DEVOLVIDO
+              const isPendente = !isPerdido && !isPago && !isDevolvido;
 
               // Verifica quantos acessos o colaborador fez no mês da retirada
               const checkRegra = verificarRegraTresAcessos(dadosSeguros, item.colaborador, item.dataRetirada);
@@ -778,8 +819,8 @@ export default function ControleProvisoriosView() {
                   }`}
                 >
                   {/* Cartão */}
-                  <div className="w-14 shrink-0">
-                    <span className={`font-mono text-xs font-extrabold px-2 py-1 rounded-md border inline-block text-center ${
+                  <div className="w-24 shrink-0 pr-2 flex items-center">
+                    <span className={`font-mono text-xs font-extrabold px-2.5 py-1 rounded-md border inline-block text-center min-w-[60px] ${
                       isPerdido
                         ? 'bg-red-900/60 text-red-200 border-red-600'
                         : isPago
@@ -793,7 +834,7 @@ export default function ControleProvisoriosView() {
                   </div>
 
                   {/* Colaborador & Empresa */}
-                  <div className="flex-1 min-w-0 pr-2">
+                  <div className="flex-1 min-w-[200px] pr-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-bold text-slate-100 text-xs truncate max-w-[200px] xl:max-w-none">
                         {item.colaborador}
@@ -843,7 +884,7 @@ export default function ControleProvisoriosView() {
                           <p className="text-[10px] font-mono text-slate-400 mt-0.5">{formatarDataBr(item.dataPagamento)}</p>
                         )}
                       </div>
-                    ) : item.dataDevolucao ? (
+                    ) : isDevolvido ? (
                       <div className="text-slate-300">
                         <div className="flex items-center gap-1">
                           <span className="font-semibold text-emerald-400 text-[11px]">{formatarDataBr(item.dataDevolucao)}</span>
@@ -857,7 +898,7 @@ export default function ControleProvisoriosView() {
                         )}
                       </div>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-950/60 text-red-400 border border-red-800/60 animate-pulse">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-950/60 text-red-400 border border-red-800/60 animate-pulse" title="Credencial em uso contínuo / Em posse do colaborador">
                         Não Devolvido
                       </span>
                     )}
@@ -892,7 +933,7 @@ export default function ControleProvisoriosView() {
                   </div>
 
                   {/* Status / Ação (Sempre visível à direita sem scroll horizontal) */}
-                  <div className="w-28 shrink-0 flex items-center justify-end text-right">
+                  <div className="w-36 shrink-0 flex items-center justify-end gap-1.5 text-right">
                     {isPerdido ? (
                       <button
                         type="button"
@@ -909,23 +950,31 @@ export default function ControleProvisoriosView() {
                         Quitado
                       </span>
                     ) : isPendente ? (
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => iniciarBaixa(item)}
-                          className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 transition-all shrink-0 cursor-pointer"
-                          title="Registrar devolução e horário de baixa deste cartão"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Baixa</span>
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => iniciarBaixa(item)}
+                        className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 transition-all shrink-0 cursor-pointer"
+                        title="Registrar devolução e horário de baixa deste cartão"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Baixa</span>
+                      </button>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-emerald-950/40 text-emerald-400 border border-emerald-800/40 shrink-0">
                         <CheckCircle2 className="w-3 h-3" />
                         Devolvido
                       </span>
                     )}
+
+                    {/* Botão de Edição Completa */}
+                    <button
+                      type="button"
+                      onClick={() => abrirEditarProvisorio(item)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-blue-600/20 text-slate-400 hover:text-blue-300 border border-slate-700 hover:border-blue-500/40 transition-colors cursor-pointer shrink-0"
+                      title="Editar dados da credencial provisória"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               );
@@ -941,6 +990,16 @@ export default function ControleProvisoriosView() {
         onSalvar={handleSalvarNovaSaida}
         cartoesOcupados={cartoesOcupados}
         registrosExistentes={dadosSeguros}
+      />
+
+      {/* MODAL DE EDIÇÃO DE CREDENCIAL PROVISÓRIA */}
+      <EditarProvisorioModal
+        isOpen={!!registroParaEditar}
+        registro={registroParaEditar}
+        onClose={() => setRegistroParaEditar(null)}
+        onSalvar={handleSalvarEdicaoProvisorio}
+        listaVigilantes={listaVigilantes}
+        listaObservacoes={listaObservacoes}
       />
 
       {/* MODAL DE REGISTRO DE BAIXA / DEVOLUÇÃO (COM TIMESTAMP EM TEMPO REAL) */}

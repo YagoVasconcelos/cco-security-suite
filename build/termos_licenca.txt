@@ -1,0 +1,37 @@
+TERMOS DE USO, POLÍTICA DE SEGURANÇA E LICENCIAMENTO DE SOFTWARE
+CCO SECURITY SUITE — REVISÃO 1.2 (2026)
+TECPRIMUS SOLUÇÕES TECNOLÓGICAS
+
+ATENÇÃO: LEIA ATENTAMENTE ESTE CONTRATO ANTES DE PROSSEGUIR COM A INSTALAÇÃO OU UTILIZAÇÃO DESTE SOFTWARE. AO CLICAR EM "EU ACEITO OS TERMOS", INSTALAR, COPIAR OU UTILIZAR ESTE SOFTWARE, VOCÊ CONCORDA EM FICAR VINCULADO AOS TERMOS DESTA LICENÇA. SE VOCÊ NÃO CONCORDAR COM ESTES TERMOS, NÃO INSTALE, NÃO COPIE E NÃO UTILIZE ESTE SOFTWARE.
+
+1. PROPRIEDADE INTELECTUAL E DIREITOS AUTORAIS
+O software CCO Security Suite (doravante denominado "SOFTWARE"), incluindo seus códigos-fonte, arquitetura, interface gráfica, fluxos operacionais, algoritmos de merge, templates e documentações associadas, é de propriedade exclusiva de Yago Marinho e TecPrimus Soluções Tecnológicas, sendo protegido pela legislação brasileira de proteção à propriedade intelectual, em especial a Lei Federal nº 9.609, de 19 de fevereiro de 1998 (Lei do Software) e a Lei Federal nº 9.610, de 19 de fevereiro de 1998 (Lei de Direitos Autorais), bem como por tratados internacionais aplicáveis.
+
+2. CONCESSÃO DE LICENÇA DE USO RESTRITO
+A TecPrimus Soluções Tecnológicas concede a você ou à entidade que você representa uma licença não-exclusiva, intransferível, revogável e estritamente limitada para instalar e executar o SOFTWARE exclusivamente nas estações de trabalho e terminais da Central de Controle Operacional (CCO) autorizados.
+
+3. VINCULAÇÃO DE HARDWARE E BLINDAGEM CONTRA CÓPIA (HWID)
+3.1. O SOFTWARE incorpora mecanismos proprietários de proteção criptográfica e vinculação de hardware (Hardware ID - HWID).
+3.2. No ato da primeira ativação, o SOFTWARE captura identificadores únicos de hardware da máquina local e gera uma chave de licença digital exclusiva para a estação de trabalho autorizada.
+3.3. É expressamente proibida a cópia, clonagem, espelhamento ou transferência da pasta da aplicação para outros computadores. A tentativa de execução em hardware não autorizado configurará violação contratual, resultando em bloqueio instantâneo do aplicativo e encerramento da execução.
+
+4. RESTRIÇÕES EXPRESSAS E VEDAÇÃO À ENGENHARIA REVERSA
+É estritamente vedado ao licenciado, usuário ou terceiros:
+a) Modificar, descompilar, desmontar, realizar engenharia reversa ou tentar derivar o código-fonte do SOFTWARE ou de seus módulos protegidos;
+b) Remover, alterar ou ocultar quaisquer avisos de direitos autorais, marcas registradas ou avisos de propriedade intelectual contidos no SOFTWARE;
+c) Distribuir, sublicenciar, alugar, arrendar, ceder ou disponibilizar o SOFTWARE para terceiros sem autorização formal prévia e por escrito da TecPrimus Soluções Tecnológicas;
+d) Utilizar técnicas de emulação ou contorno para burlar os mecanismos de checagem de licença, validação de senha de ativação ou vinculação de HWID.
+
+5. POLÍTICA DE SEGURANÇA E ISOLAMENTO DE DADOS
+5.1. O SOFTWARE opera sob o paradigma Offline-First / Local-First, armazenando registros operacionais, relatórios e cadastros no disco local e compartilhamentos de rede homologados pela supervisão.
+5.2. As credenciais de instalação e ativação operam em escopo estritamente isolado das senhas de administração corporativa e dos operadores do sistema.
+
+6. PENALIDADES E SANÇÕES LEGAIS
+A violação de qualquer das cláusulas deste Termo sujeitará o infrator e as entidades envolvidas às penalidades civis e criminais previstas nos Artigos 12 e seguintes da Lei nº 9.609/1998 (detenção de 6 meses a 4 anos e multa), além da apuração de perdas e danos e medidas cautelares de busca e apreensão.
+
+7. FORO DE ELEIÇÃO
+Fica eleito o Foro da Comarca de Fortaleza, Estado do Ceará, com renúncia expressa a qualquer outro, por mais privilegiado que seja, para dirimir quaisquer litígios decorrentes deste instrumento.
+
+TecPrimus Soluções Tecnológicas — Copyright © 2026. Todos os direitos reservados.
+Desenvolvedor e Arquiteto: Yago Marinho
+Contato: tecprimus2021@outlook.com

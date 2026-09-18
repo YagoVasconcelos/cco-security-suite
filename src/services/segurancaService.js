@@ -1,47 +1,63 @@
 /**
  * Serviço de Gestão da Segurança e Senha Mestra do Sistema CCO
- * Gerencia a autenticação administrativa e persistência no arquivo local (data/seguranca.json).
- * Senha padrão de fábrica: admin123
+ * Gerencia a autenticação administrativa e validação segura (PBKDF2 / safeStorage DPAPI).
+ * 
+ * Regra Crítica: Senhas NUNCA são gravadas em texto puro ou trafegadas para o navegador.
  */
 
-const SENHA_PADRAO = 'admin123';
 const STORAGE_KEY = 'cco_senha_mestra';
 
+// Purga automática de resíduos legados de texto plano no cliente
+try {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.removeItem(STORAGE_KEY);
+  }
+} catch (e) {}
+
 /**
- * Obtém a senha mestra atual do backend (ou localStorage com fallback seguro).
- * @returns {Promise<{ senhaMestra: string, dataAtualizacao: string }>}
+ * Obtém os metadados de status e segurança atuais (sem expor hashes ou senhas).
+ * @returns {Promise<{ protegido: boolean, dataAtualizacao: string, tipoCriptografia?: string }>}
  */
 export async function obterSenhaMestra() {
+  // 1. Tenta via Electron IPC nativo
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.obterStatusSeguranca === 'function') {
+    try {
+      const status = await window.electronAPI.obterStatusSeguranca();
+      if (status && status.success) {
+        return {
+          protegido: true,
+          dataAtualizacao: status.dataAtualizacao || new Date().toISOString(),
+          tipoCriptografia: status.tipoCriptografia
+        };
+      }
+    } catch (e) {
+      console.warn('[segurancaService] Erro ao consultar status via IPC:', e);
+    }
+  }
+
+  // 2. Consulta via API HTTP
   try {
     const res = await fetch('/api/seguranca');
     if (res.ok) {
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const data = await res.json();
-        if (data && data.senhaMestra) {
-          // Sincroniza cache local
-          localStorage.setItem(STORAGE_KEY, data.senhaMestra);
-          return {
-            senhaMestra: data.senhaMestra,
-            dataAtualizacao: data.dataAtualizacao || new Date().toISOString()
-          };
-        }
-      }
+      const data = await res.json();
+      return {
+        protegido: true,
+        dataAtualizacao: data.dataAtualizacao || new Date().toISOString(),
+        tipoCriptografia: data.tipoCriptografia
+      };
     }
   } catch (err) {
-    console.warn('[segurancaService] Erro ao buscar da API, usando fallback local:', err);
+    console.warn('[segurancaService] Erro ao buscar status de segurança da API:', err);
   }
 
-  // Fallback LocalStorage ou Senha de Fábrica
-  const local = localStorage.getItem(STORAGE_KEY) || SENHA_PADRAO;
   return {
-    senhaMestra: local,
+    protegido: true,
     dataAtualizacao: new Date().toISOString()
   };
 }
 
 /**
- * Valida se a senha digitada confere com a Senha Mestra cadastrada.
+ * Valida a senha digitada no servidor / Electron seguro, prevenindo vazamento de hash para o cliente.
  * @param {string} senhaDigitada 
  * @returns {Promise<boolean>}
  */
@@ -50,12 +66,49 @@ export async function validarSenhaMestra(senhaDigitada) {
     return false;
   }
 
-  const { senhaMestra } = await obterSenhaMestra();
-  return senhaDigitada.trim() === senhaMestra.trim();
+  const senhaLimpa = senhaDigitada.trim();
+
+  // 1. Tenta validação via IPC nativo do Electron (com safeStorage DPAPI)
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.validarSenhaMestra === 'function') {
+    try {
+      const resp = await window.electronAPI.validarSenhaMestra(senhaLimpa);
+      if (resp && typeof resp.valido === 'boolean') {
+        return resp.valido;
+      }
+    } catch (err) {
+      console.warn('[segurancaService] Erro na validação IPC, tentando API HTTP:', err);
+    }
+  }
+
+  // 2. Validação via endpoint seguro POST /api/validar-senha
+  try {
+    let res = await fetch('/api/validar-senha', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ senha: senhaLimpa })
+    });
+
+    if (res.status === 404) {
+      res = await fetch('/api/seguranca/validar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha: senhaLimpa })
+      });
+    }
+
+    if (res.ok) {
+      const data = await res.json();
+      return Boolean(data.valido);
+    }
+  } catch (err) {
+    console.error('[segurancaService] Erro ao conectar ao serviço de autenticação:', err);
+  }
+
+  return false;
 }
 
 /**
- * Altera a Senha Mestra do sistema com persistência em disco.
+ * Altera a Senha Mestra do sistema com hash irreversível e blindagem em disco.
  * @param {string} senhaAtual 
  * @param {string} novaSenha 
  * @returns {Promise<{ success: boolean, message: string }>}
@@ -71,7 +124,33 @@ export async function alterarSenhaMestra(senhaAtual, novaSenha) {
 
   const novaSenhaLimpa = novaSenha.trim();
 
-  // Tenta persistir no backend JSON (tenta /api/salvar-senha e fallback para /api/seguranca)
+  // 1. Tenta alteração via Electron IPC nativo
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.alterarSenhaMestra === 'function') {
+    try {
+      const resp = await window.electronAPI.alterarSenhaMestra(senhaAtual, novaSenhaLimpa);
+      if (resp) {
+        if (resp.error) {
+          throw new Error(resp.error);
+        }
+        if (resp.success) {
+          window.dispatchEvent(new CustomEvent('cco_senha_changed', {
+            detail: { dataAtualizacao: resp.dataAtualizacao || new Date().toISOString() }
+          }));
+          return {
+            success: true,
+            message: resp.message || 'Senha mestra alterada e blindada com sucesso!'
+          };
+        }
+      }
+    } catch (err) {
+      if (err.message && (err.message.includes('incorreta') || err.message.includes('caracteres') || err.message.includes('vazia'))) {
+        throw err;
+      }
+      console.warn('[segurancaService] Falha IPC ao salvar senha, tentando API HTTP:', err);
+    }
+  }
+
+  // 2. Alteração via API HTTP
   try {
     let res = await fetch('/api/salvar-senha', {
       method: 'POST',
@@ -87,50 +166,23 @@ export async function alterarSenhaMestra(senhaAtual, novaSenha) {
       });
     }
 
-    const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Erro ao alterar a senha mestra.');
-      }
-
-      // Atualiza cache local
-      localStorage.setItem(STORAGE_KEY, novaSenhaLimpa);
-
-      // Dispara evento global
-      window.dispatchEvent(new CustomEvent('cco_senha_changed', {
-        detail: { dataAtualizacao: data.dataAtualizacao || new Date().toISOString() }
-      }));
-
-      return {
-        success: true,
-        message: data.message || 'Senha mestra alterada com sucesso!'
-      };
-    } else {
-      throw new Error('Resposta inválida do servidor ao salvar senha.');
-    }
-  } catch (err) {
-    // Se o backend retornou erro de credencial incorreta, propaga imediatamente
-    if (err.message && (err.message.includes('incorreta') || err.message.includes('obrigatória') || err.message.includes('caracteres'))) {
-      throw err;
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Erro ao alterar a senha mestra.');
     }
 
-    // Se o backend estiver indisponível por problema de rede, valida localmente
-    console.warn('[segurancaService] API indisponível, processando validação local:', err);
-
-    const senhaSalva = localStorage.getItem(STORAGE_KEY) || SENHA_PADRAO;
-    if (senhaAtual.trim() !== senhaSalva.trim()) {
-      throw new Error('A senha mestra atual informada está incorreta.');
-    }
-
-    localStorage.setItem(STORAGE_KEY, novaSenhaLimpa);
     window.dispatchEvent(new CustomEvent('cco_senha_changed', {
-      detail: { dataAtualizacao: new Date().toISOString() }
+      detail: { dataAtualizacao: data.dataAtualizacao || new Date().toISOString() }
     }));
 
     return {
       success: true,
-      message: 'Senha mestra atualizada no armazenamento local com sucesso!'
+      message: data.message || 'Senha mestra alterada e blindada com sucesso!'
     };
+  } catch (err) {
+    if (err.message) {
+      throw err;
+    }
+    throw new Error('Não foi possível se comunicar com o serviço de segurança.');
   }
 }

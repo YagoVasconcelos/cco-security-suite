@@ -1,14 +1,14 @@
-# CCO Security Suite Rev 1.0 | TecPrimus Soluções Tecnológicas
-**Desenvolvedor:** Yago Marinho | **Empresa:** TecPrimus Soluções Tecnológicas | **Versão:** Rev 1.0 (2026)  
+# CCO Security Suite Rev 1.1 | TecPrimus Soluções Tecnológicas
+**Desenvolvedor:** Yago Marinho | **Empresa:** TecPrimus Soluções Tecnológicas | **Versão:** Rev 1.1 (2026)  
 **Contato:** [LinkedIn](https://www.linkedin.com/in/yago-marinho-b8a309141/) | [GitHub](https://github.com/YagoVasconcelos) | **E-mail:** tecprimus2021@outlook.com
 
 ---
 
-# Arquitetura de Software e Guia de Implantação (TI & Engenharia) — Rev 1.0
+# Arquitetura de Software e Guia de Implantação (TI & Engenharia) — Rev 1.1
 
 ## 1. Visão Geral da Arquitetura
 
-O **CCO Security Suite (Rev 1.0)** adota uma arquitetura híbrida de alta performance que combina a reatividade de uma Single Page Application (**React 18 + Tailwind CSS**) com o poder e integração com o sistema operacional providos pelo ecossistema **Electron 44** e **Node.js**.
+O **CCO Security Suite (Rev 1.1)** adota uma arquitetura híbrida de alta performance que combina a reatividade de uma Single Page Application (**React 18 + Tailwind CSS**) com o poder e integração com o sistema operacional providos pelo ecossistema **Electron 44** e **Node.js**.
 
 ### 1.1 Diagrama de Arquitetura de Alto Nível
 
@@ -17,49 +17,63 @@ graph TD
     subgraph "Desktop Runtime (Electron 44 / Windows OS)"
         MainProcess["Processo Principal (electron/main.cjs)"]
         PreloadBridge["Context Isolation Bridge (electron/preload.cjs)"]
-        IPCHandlers["IPC Dialog Handlers (Save / Open Backup)"]
-        EmbeddedServer["Servidor HTTP Local Node.js (electron/server.cjs - 127.0.0.1)"]
+        IPCHandlers["IPC Dialog Handlers (Open/Save File & Directory)"]
+        CryptoModule["Criptografia & Blindagem (electron/cryptoHelper.cjs)"]
+        EmbeddedServer["Servidor HTTP Local Node.js (electron/server.cjs - 127.0.0.1:3000)"]
     end
 
-    subgraph "Camada de Persistência Local"
-        JSONFiles["Banco de Dados JSON (data/*.json)"]
+    subgraph "Camada de Persistência Local & Criptográfica"
+        JSONFiles["Banco de Dados JSON (data/*.json + cargos.json)"]
+        SecureStore["Senha Mestra Blindada (safeStorage DPAPI / PBKDF2-SHA512)"]
         ExcelFiles["Planilhas XLSX (ocorrencias.xlsx)"]
         BackupFiles["Backups Estruturados (.json via SaveDialog)"]
-        NetworkShare["Pastas de Rede / Exports (MAPA DE CALOR/)"]
+        NetworkShare["Pastas de Rede / Exports (Salvamento Concorrente)"]
     end
 
     subgraph "Interface Renderer (React 18 + Vite)"
         ReactSPA["React SPA (dist-react/index.html)"]
-        RouterState["State Management & Custom Services"]
-        BackupService["backupService.js (Merge Inteligente)"]
-        ROPrintEngine["RelatorioOcorrenciaOficialDocumento.jsx (@media print)"]
-        DashboardView["Dashboard Executivo & Relatórios"]
-        ModulesViews["Módulos: RO, Provisórios, Visitantes, RFID, Config"]
+        RouterState["State Management & Eventos Globais (cco_cargos_changed)"]
+        SortableHeader["SortableHeader (Ordenação Bidirecional em 100% das Tabelas)"]
+        KeyboardManager["ModalKeyboardManager (Acessibilidade ESC / Enter)"]
+        BackupService["backupService.js (Merge Inteligente Anti-Duplicidade)"]
+        ROPrintEngine["RelatorioOcorrenciaOficialDocumento.jsx (@media print Retrato)"]
+        DashboardLandscape["Dashboard Executivo 4 Módulos (A4 Landscape Print)"]
+        CobrancaModal["ModalCobrancaSegundaVia (Taxa Fixa R$ 30,00)"]
+        ModulesViews["Módulos: RO, Provisórios, Visitantes, RFID, Cargos, Config"]
     end
 
     MainProcess --> PreloadBridge
     MainProcess --> IPCHandlers
+    MainProcess --> CryptoModule
     MainProcess --> EmbeddedServer
+    CryptoModule --> SecureStore
     IPCHandlers --> BackupFiles
+    IPCHandlers --> NetworkShare
     EmbeddedServer --> JSONFiles
     EmbeddedServer --> ExcelFiles
     EmbeddedServer --> NetworkShare
     PreloadBridge --> ReactSPA
     ReactSPA --> RouterState
+    RouterState --> SortableHeader
+    RouterState --> KeyboardManager
     RouterState --> BackupService
     RouterState --> ROPrintEngine
+    RouterState --> DashboardLandscape
+    RouterState --> CobrancaModal
     RouterState --> ModulesViews
-    RouterState --> DashboardView
     ReactSPA -.->|Chamadas HTTP REST /api/*| EmbeddedServer
+    ReactSPA -.->|Invocação IPC Segura window.electronAPI| PreloadBridge
 ```
 
-### 1.2 Princípios Arquiteturais
-1. **Isolamento de Processos e Segurança:** O processo de renderização não possui acesso irrestrito ao `node:fs` ou `node:child_process`. As chamadas de I/O em disco são mediadas via HTTP interno restrito (`127.0.0.1`) pelo servidor local embutido (`electron/server.cjs`) e via IPC com canal seguro no `preload.cjs`.
-2. **Resiliência Offline Total:** Nenhuma dependência de CDNs externas, endpoints na nuvem ou serviços de autenticação remota. Fontes, bibliotecas e estilos estão empacotados localmente no bundle de produção.
+### 1.2 Princípios Arquiteturais e Diretrizes de Engenharia
+1. **Isolamento de Processos e Segurança Criptográfica:** O processo de renderização não possui acesso irrestrito ao `node:fs` ou `node:child_process`. O acesso a disco é mediado via HTTP interno estrito (`127.0.0.1:3000`) pelo servidor local embutido (`electron/server.cjs`) e via IPC com canal seguro no `preload.cjs`. A segurança de credenciais é garantida pelo módulo `cryptoHelper.cjs`, que utiliza **Windows DPAPI (`safeStorage`)** com fallback robusto para **PBKDF2-HMAC-SHA512 (100.000 iterações)**, eliminando senhas em texto plano.
+2. **Resiliência Offline Total:** Nenhuma dependência de CDNs externas, endpoints na nuvem ou serviços de autenticação remota. Fontes, ícones (Lucide), bibliotecas e estilos Tailwind estão empacotados localmente no bundle de produção.
 3. **Persistência Baseada em Arquivos (File-Based Storage):** Os dados são mantidos em arquivos JSON estruturados, legíveis por humanos e fáceis de auditar e realizar backup, eliminando a necessidade de gerenciar serviços de bancos de dados relacionais pesados em computadores de portaria.
-4. **Arquitetura de Usuários e Separação de Papéis:**
-   * **Operadores do Sistema (`operadores.json`):** Contas com permissão de login no software CCO, manipulação de relatórios, parâmetros e execução de rotinas administrativas.
-   * **Efetivo de Vigilância de Campo (`vigilantes.json`):** Registros dedicados aos vigilantes físicos (Portarias 1 e 2, Ronda), utilizados estritamente para vínculo de responsabilidade na concessão e baixa de cartões provisórios, sem acesso às telas do software.
+4. **Matriz Dinâmica de Cargos & Governança de Perfis:**
+   * **Operadores CCO (`operadores.json`):** Contas autorizadas com login no software, manipulação de ocorrências, supervisão do dashboard e rotinas administrativas sob Senha Mestra.
+   * **Efetivo de Vigilância de Campo (`vigilantes.json`):** Vigilantes físicos alocados nas Portarias 1 e 2 e Ronda, cadastrados exclusivamente para vínculo de responsabilidade na concessão e baixa de cartões provisórios, sem acesso às telas do software.
+   * **Matriz de Cargos e Funções (`cargos.json`):** Estrutura hierárquica centralizada que alimenta reativamente todos os formulários da aplicação através do evento global `cco_cargos_changed`.
+5. **Dashboard Executivo de 4 Módulos com Paginação Limpa e Isolamento de Filtros:** Visualização analítica estruturada em 4 módulos paisagem independentes (Ocorrências, Provisórios, Visitantes e RFID & Contabilidade) com suporte a drill-down interativo e exportação em A4 Landscape de alta definição.
 
 ---
 
@@ -67,12 +81,16 @@ graph TD
 
 ```
 CCO/
-├── .gitignore                      # Regras rigorosas de sigilo (ignora dados reais de clientes)
-├── README.md                       # Documentação executiva na raiz (Rev 1.0)
+├── .gitignore                      # Regras rigorosas de sigilo corporativo
+├── README.md                       # Documentação executiva na raiz do repositório
+├── Makefile                        # Automação de comandos rápidos (make dev, make build, etc.)
 ├── package.json                    # Metadados do software, dependências e scripts de build
-├── vite.config.js                  # Configuração do Vite com base relativa (./)
-├── tailwind.config.js              # Tokens de design e cores corporativas
+├── vite.config.js                  # Configuração do Vite com base relativa (./) e outDir dist-react
+├── tailwind.config.js              # Tokens de design corporativo (Dark Mode Slate-950)
+├── postcss.config.js               # Pipeline PostCSS para processamento de estilos
 ├── index.html                      # Ponto de montagem da SPA React
+├── icon.ico                        # Ícone do aplicativo multi-resolução para Windows
+├── cargos.json                     # Matriz corporativa centralizada de cargos e funções
 │
 ├── build/                          # Recursos de compilação do Electron Builder
 │   ├── icon.ico                    # Ícone multi-resolução para Windows (256 a 16 px)
@@ -84,142 +102,165 @@ CCO/
 │   └── icon-256.png                # Imagem de alta resolução
 │
 ├── electron/                       # Código-fonte do Runtime Desktop
-│   ├── main.cjs                    # Processo principal (janela, menus nativos, handlers IPC de backup)
-│   ├── preload.cjs                 # Ponte segura de contexto (Context Isolation)
-│   └── server.cjs                  # Servidor local Node.js (API REST, merge e persistência)
+│   ├── main.cjs                    # Processo principal (janela, menus, IPC handlers nativos)
+│   ├── preload.cjs                 # Ponte segura de contexto (Context Isolation Bridge)
+│   ├── server.cjs                  # Servidor local Node.js (API REST, merge e persistência)
+│   └── cryptoHelper.cjs            # Envoltório de blindagem criptográfica e DPAPI safeStorage
 │
 ├── data/                           # Armazenamento oficial de dados (JSON)
-│   ├── database_template.json      # Template de fábrica limpo e homologado
-│   ├── ocorrencias.json            # Base de dados de Relatórios de Ocorrências
-│   ├── provisorios.json            # Base de dados de Credenciais Provisórias
-│   ├── visitantes.json             # Base de dados de Visitantes
-│   ├── rfid.json                   # Base de dados de Chaves e RFID
+│   ├── database_template.json      # Template de fábrica limpo e homologado (Clean State)
+│   ├── ocorrencias.json            # Base de dados de Relatórios de Ocorrências (RO)
+│   ├── provisorios.json            # Base de dados de Credenciais Provisórias (P1 e P2)
+│   ├── visitantes.json             # Base de dados de Visitantes e Slots de Acesso
+│   ├── rfid.json                   # Base de dados de Chaves e Tags RFID
 │   ├── operadores.json             # Lista de Operadores CCO (Central com Login)
 │   ├── vigilantes.json             # Efetivo de Vigilância de Campo (Portarias/Ronda)
-│   ├── turnos.json                 # Lista de Turnos da Escala
-│   ├── observacoes.json            # Lista de Motivos de Provisórios
-│   ├── responsaveis.json           # Responsáveis da Planta e Assinaturas
-│   └── seguranca.json              # Senha Mestra do Sistema
+│   ├── turnos.json                 # Lista de Turnos da Escala (12x36 D/N, Adm)
+│   ├── observacoes.json            # Lista de Motivos de Provisórios (Esqueceu, Perdeu, etc.)
+│   ├── responsaveis.json           # Responsáveis da Planta, Assinaturas e Caminho de Rede
+│   └── seguranca.json              # Senha Mestra Blindada (CCO_SECURE_V2)
 │
 ├── templates/                      # Espelho dos modelos de dados para deploy limpo
 │   └── database_template.json      # Modelo padrão de inicialização
 │
-├── scripts/                        # Scripts utilitários de automação
+├── scripts/                        # Scripts utilitários de automação e compilação
 │   ├── clean-data.cjs              # Higienização de dados antes do build (Clean Build)
 │   ├── generate-icon.cjs           # Gerador automatizado do ícone .ico via Electron
-│   ├── generate-pdf-docs.cjs       # Compilador oficial dos PDFs ABNT (Rev 1.0)
+│   ├── generate-pdf-docs.cjs       # Compilador oficial dos PDFs ABNT (Rev 1.1)
 │   └── build-manual-pdf.cjs        # Compilador do Manual do Usuário Markdown para PDF
 │
-├── docs/                           # Documentação Técnica e de Usuário (Rev 1.0)
+├── docs/                           # Documentação Técnica e de Usuário Oficial
 │   ├── DRS_CCO_Security_Suite.md   # Documento de Requisitos de Software
-│   ├── Manual_Usuario_CCO.md       # Manual de Operação do Usuário
-│   └── Arquitetura_Implantacao.md  # Este Guia Técnico de TI e Implantação
+│   ├── Manual_Usuario_CCO.md       # Manual de Operação do Usuário Final
+│   ├── Arquitetura_Implantacao.md  # Este Guia Técnico de TI e Implantação
+│   └── prints/                     # Capturas de tela para compilação dos manuais
 │
 ├── src/                            # Código-fonte da aplicação React
 │   ├── main.jsx                    # Ponto de entrada do React DOM
-│   ├── App.jsx                     # Roteador principal e gerenciamento de telas
-│   ├── index.css                   # Estilos globais e regras de impressão (@media print)
+│   ├── App.jsx                     # Roteador principal e gerenciamento de abas
+│   ├── index.css                   # Estilos globais corporativos e regras de impressão (@media print)
 │   │
-│   ├── components/                 # Componentes compartilhados
-│   │   ├── layout/                 # Layouts (Sidebar, Header corporativo)
-│   │   └── common/                 # Modais genéricos (ModalSobre, ModalSenha, etc.)
+│   ├── components/                 # Componentes reutilizáveis
+│   │   ├── layout/                 # Layouts (Sidebar corporativa, Header de status)
+│   │   ├── common/                 # Modais (ModalSobre, ModalSenha, SortableHeader, ModalKeyboardManager)
+│   │   │   ├── SortableHeader.jsx           # Cabeçalho com ordenação bidirecional interativa
+│   │   │   └── ModalKeyboardManager.jsx     # Gerenciamento de acessibilidade de teclado (ESC / Enter)
+│   │   └── ui/                     # Componentes atômicos de interface (Botões, Badges, Cards)
 │   │
-│   ├── constants/                  # Matriz oficial de taxonomia corporativa
-│   │   └── taxonomiaCco.js         # Prédios, Áreas, Tópicos e Empresas
+│   ├── constants/                  # Matrizes de taxonomia oficial
+│   │   └── taxonomiaCco.js         # Prédios, Áreas, Tópicos, Empresas e normalizador de gravidade
 │   │
 │   ├── modules/                    # Módulos de negócio da CCO
-│   │   ├── dashboard/              # Dashboard Executivo e Detalhamento Analítico
+│   │   ├── dashboard/              # Console Executivo Analítico
+│   │   │   ├── DashboardExecutivoView.jsx     # View com 4 módulos paisagem e drill-down
+│   │   │   ├── RelatorioExecutivoPrint.jsx    # Motor de impressão A4 Landscape
+│   │   │   └── ModalCobrancaSegundaVia.jsx    # Modal de cobrança da taxa fixa de R$ 30,00
 │   │   ├── ocorrencias/            # Ferramenta 1: Relatório de Ocorrências (RO)
 │   │   │   ├── RelatorioOcorrenciaForm.jsx            # Formulário de Cadastro e Edição
-│   │   │   └── RelatorioOcorrenciaOficialDocumento.jsx # Template Linear Estrito Oficial
+│   │   │   └── RelatorioOcorrenciaOficialDocumento.jsx # Template Linear Oficial Limpo
 │   │   ├── provisorios/            # Ferramenta 2: Credenciais Provisórias P1 e P2
 │   │   ├── visitantes/             # Ferramenta 3: Controle de Visitantes e Slots
-│   │   ├── rfid/                   # Ferramenta 4: Gestão de RFID e Chaves
+│   │   ├── rfid/                   # Ferramenta 4: Gestão de RFID e Claviculário
 │   │   └── configuracoes/          # Painel de Configurações Administrativas
-│   │       └── PainelBackupRestauracao.jsx # Painel de Backup & Merge Inteligente
+│   │       ├── PainelBackupRestauracao.jsx    # Central de Backup & Merge Inteligente
+│   │       ├── GerenciadorCargosModal.jsx     # Gestão centralizada de Cargos e Funções
+│   │       └── GerenciadorSegurancaModal.jsx   # Gestão de Senha Mestra com validação criptográfica
 │   │
 │   ├── services/                   # Camada de serviços e regras de negócio
 │   │   ├── backupService.js        # Lógica de Exportação e Merge Anti-Duplicidade
+│   │   ├── cargosService.js        # Gestão reativa da matriz de cargos
 │   │   ├── ocorrenciasService.js   # Persistência e regras de negócio de RO
-│   │   ├── provisoriosService.js   # Regras de limite de 3 acessos e reincidência
+│   │   ├── provisoriosService.js   # Regras de limite de 3 acessos e taxa de 2ª via
 │   │   ├── visitantesService.js    # Gerenciamento de slots e checkout de visitantes
-│   │   ├── rfidService.js          # Gestão de custódia de chaves
-│   │   └── dashboardExportService.js # Compilação de relatórios PDF e bases XLSX
+│   │   ├── rfidService.js          # Gestão de custódia e inventário de RFID
+│   │   ├── segurancaService.js     # Comunicação com o backend para validação de senha
+│   │   └── dashboardExportService.js # Compilação de relatórios PDF (Paisagem) e planilhas XLSX
 │   │
-│   └── server/                     # Middleware de desenvolvimento para o Vite
-│       └── apiPlugin.js            # Endpoints da API REST local (backup, persistência)
+│   └── server/                     # Middleware e lógica de backend embutido
+│       ├── apiPlugin.js            # Endpoints da API REST local para modo dev Vite
+│       └── cryptoHelper.cjs        # Implementação de PBKDF2-HMAC-SHA512 e safeStorage
 │
-└── dist-electron/                  # Artefatos compilados de produção
-    ├── CCO Security Suite Setup 1.0.0.exe      # Instalador oficial Windows (NSIS)
-    ├── CCO Security Suite Portable 1.0.0.exe   # Executável portátil autônomo
-    └── win-unpacked/                           # Pasta de binários descompactada
+└── dist/                           # Artefatos compilados de produção (Electron Builder)
+    ├── CCO Security Suite Setup 1.1.0.exe      # Instalador oficial Windows (NSIS)
+    ├── CCO Security Suite Portable 1.1.0.exe   # Executável portátil autônomo
+    └── win-unpacked/                           # Pasta de binários descompactada para testes
 ```
 
 ---
 
-## 3. Modelo de Persistência e Storage Engine
+## 3. Modelo de Persistência, Segurança & Storage Engine
 
-### 3.1 Camada de Dados em Arquivos JSON
-Cada entidade do sistema é armazenada em seu respectivo arquivo JSON estruturado em `data/`:
+### 3.1 Camada de Dados em Arquivos JSON Estruturados
+Cada entidade do sistema é armazenada em seu respectivo arquivo JSON estruturado em `data/` (com espelhamento em memória e `localStorage`):
 * `ocorrencias.json`: Array de objetos contendo `numeroRO`, `data`, `hora`, `local`, `topico`, `gravidade`, `envolvidos`, `fotosBase64`, `nomeArquivoPdf`.
-* `provisorios.json`: Array de movimentações de credenciais com `nome`, `empresa`, `cartao`, `portaria`, `vigilante`, `dataRetirada`, `horaRetirada`, `dataDevolucao`, `horaDevolucao`, `motivo`.
-* `visitantes.json`: Array de visitas com `nome`, `documento`, `empresa`, `contato`, `portaria`, `crachá`, `dataEntrada`, `horaEntrada`, `status`.
+* `provisorios.json`: Array de movimentações de credenciais com `nome`, `empresa`, `cartao`, `portaria`, `vigilante`, `dataRetirada`, `horaRetirada`, `dataDevolucao`, `horaDevolucao`, `motivo`, `taxaSegundaVia`.
+* `visitantes.json`: Array de visitas com `nome`, `documento`, `empresa`, `anfitriao`, `portaria`, `cracha`, `dataEntrada`, `horaEntrada`, `status`.
+* `rfid.json`: Inventário de chaves mestras e tags RFID (`codigoRfid`, `codigoVerso`, `tipo`, `status`, `cautelaAtiva`).
+* `cargos.json`: Matriz corporativa de funções (`id`, `nome`, `tipo`, `status`, `dataCadastro`).
 * `operadores.json`: Membros da equipe da Central CCO autorizados a operar o software.
-* `vigilantes.json`: Efetivo operacional de campo (Portaria 1, Portaria 2 e Ronda) para vínculo nas credenciais.
+* `vigilantes.json`: Efetivo operacional de campo (Portarias 1 e 2, Ronda) para vínculo nas credenciais.
 * `responsaveis.json`: Parâmetros de assinaturas corporativas (Gerência, Coordenação, Fiscal) e diretório de rede configurado (`caminhoRede`).
 * `turnos.json`: Escalas operacionais cadastradas (ex: 12x36 Diurno, 12x36 Noturno, Administrativo).
 * `observacoes.json`: Motivos parametrizados para credenciais temporárias (Esqueceu, Perdeu, Defeito, etc.).
-* `seguranca.json`: Objeto contendo `{ senhaMestra: "...", dataAtualizacao: "..." }`.
+* `seguranca.json`: Objeto de credencial blindada contendo o hash criptográfico ou cifra DPAPI.
 
 ---
 
-### 3.2 Estratégia de Resolução de Diretórios & Salvamento Concorrente (Safe Storage)
-
-Para garantir que nenhum relatório em PDF ou planilha Excel seja perdido por falhas de conectividade de rede ou restrições de permissão do Windows:
-1. **Hierarquia de Resolução (`getSafeExportDirectory`):**
-   * Se o usuário configurou um caminho personalizado em **Configurações** (`caminhoRede`), o sistema valida permissão de escrita criando e removendo um arquivo temporário de teste.
-   * Se o caminho for UNC (`\\servidor\compartilhamento`) ou absoluto (`C:\...`), ele é utilizado como destino adicional.
-   * Se for relativo (`MAPA DE CALOR/2026/09.SETEMBRO`), ele é resolvido dentro de `Documentos\CCO Security Suite\`.
-2. **Diretório Primário Inviolável:**
-   * Independentemente do caminho de rede, o sistema sempre grava uma cópia no diretório padrão do usuário do Windows: `%USERPROFILE%\Documents\CCO Security Suite\exports`.
-3. **Endpoints Dedicados no Servidor Embutido:**
-   * `GET /api/diretorio-padrao`: Retorna os caminhos seguros do sistema operacional.
-   * `POST /api/validar-diretorio`: Testa em tempo de execução a acessibilidade e permissão de escrita de qualquer caminho submetido pelo usuário.
-   * `GET /api/responsaveis` e `POST /api/salvar-responsaveis`: Persiste instantaneamente os responsáveis e o caminho de rede no arquivo `data/responsaveis.json`.
+### 3.2 Blindagem Criptográfica de Senhas (`cryptoHelper.cjs`)
+A suíte implementa proteção de nível bancário contra extração indevida ou violação física do disco:
+1. **Camada 1 — Windows Data Protection API (DPAPI via Electron `safeStorage`):**
+   * Quando executado no Windows através do Electron, o sistema criptografa as credenciais sensíveis utilizando a chave atrelada ao perfil de usuário do sistema operacional (`safeStorage.encryptString`). Mesmo que o arquivo `data/seguranca.json` seja copiado para outra máquina, a credencial não pode ser descriptografada.
+2. **Camada 2 — PBKDF2-HMAC-SHA512 com Salt Criptográfico:**
+   * Utiliza o padrão criptográfico `CCO_SECURE_V2`: **Salt aleatório de 32 bytes (256 bits)**, **100.000 iterações** de função pseudoaleatória com **HMAC-SHA512** e chave derivada de 64 bytes (512 bits).
+3. **Proteção Contra Timing Attacks:**
+   * A validação de senhas é realizada via `crypto.timingSafeEqual`, impedindo que atacantes descubram o comprimento ou conteúdo da senha medindo o tempo de resposta da CPU.
+4. **Auto-Migração Transparente:**
+   * Ao detectar qualquer registro legado em texto plano, o sistema calcula o hash blindado imediatamente e regrava o arquivo `data/seguranca.json`, eliminando permanentemente qualquer rastro em texto legível.
 
 ---
 
-### 3.3 Módulo de Backup & Restauração (Merge Inteligente Anti-Duplicidade)
-
-O sistema conta com um pipeline avançado de proteção e consolidação de dados implementado em [`src/services/backupService.js`](file:///c:/Users/YAGO_ADS_TP/Desktop/CCO/src/services/backupService.js):
-
-#### A. Exportação de Dados Unificada
-1. O serviço coleta todos os arquivos JSON locais da aplicação através do endpoint `GET /api/backup/coletar`.
-2. O payload é consolidado em um objeto JSON contendo metadados (`versao: "Rev 1.0"`, `dataBackup: ISO String`, `totalRegistros`).
-3. O Electron dispara `dialog.showSaveDialog` permitindo ao operador escolher o diretório no disco do Windows. Em ambiente web puro, executa download via Blob.
-
-#### B. Algoritmo de Fusão Não-Destrutiva (Merge Inteligente)
-Ao importar um arquivo de backup (`dialog.showOpenDialog`), o sistema não sobrescreve os dados existentes. Ele executa uma rotina de verificação por chaves exclusivas:
-* **Ocorrências (RO):** Chave primária baseada no protocolo sequencial `numeroRO` (ex: `RO-2026-548`) ou `id`.
-* **Provisórios:** Chave primária composta `${cartao}_${colaborador}_${dataRetirada}_${horaRetirada}` ou `id`.
-* **Visitantes:** Chave primária composta `${documento}_${dataEntrada}_${horaEntrada}` ou `id`.
-* **Operadores e Vigilantes:** Chave única por `matricula` funcional ou `id`.
-* **Turnos e Observações:** Normalização por nome ou `id`.
-* **RFID:** `numeroCartao`, `codigoHex` ou `id`.
-
-**Regras do Merge:**
-1. Se a chave primária já existe no banco local: o registro local é **100% preservado** e o item do backup é considerado duplicidade evitada.
-2. Se a chave primária for inédita: o registro do backup é incorporado na base local.
-3. Se o item estiver repetido dentro do próprio arquivo de backup: a repetição é descartada.
-4. Após o processamento, os arquivos `.json` e `.xlsx` são regravados atomicamente e os eventos globais de atualização de interface são disparados.
+### 3.3 Matriz de Cargos e Funções Centralizada & Reatividade Global
+* **Arquivo `cargos.json`:** Concentra todas as nomenclaturas corporativas homologadas (Operadores de Central, Técnicos, Vigilantes Líderes, Vigilantes de Portaria, Bombeiros Civis, Fiscais, etc.).
+* **Consistência Cruzada:**
+  * O formulário de cadastro de **Operadores** consome as funções do tipo `OPERADOR`.
+  * O formulário de cadastro de **Vigilantes** consome as funções do tipo `VIGILANTE`.
+  * A tabela de **Envolvidos no Relatório de Ocorrências (RO)** oferece autocomplete inteligente baseado nas funções cadastradas.
+* **Barramento de Eventos Reativo:** Qualquer inclusão, alteração ou exclusão de cargo dispara o evento `window.dispatchEvent(new CustomEvent('cco_cargos_changed'))`, sincronizando todos os módulos da interface instantaneamente sem necessidade de recarregar a aplicação.
 
 ---
 
-## 4. Pipeline de Impressão e Relatório Oficial de Ocorrência (RO)
+### 3.4 Gestão de Diretórios Nativos & Nomenclatura Dinâmica de Exportação
+1. **Seleção Nativa via IPC (`dialog:openDirectory`):**
+   * O operador seleciona pastas locais ou compartilhamentos corporativos através da caixa de diálogo nativa do Windows Explorer (`dialog.showOpenDialog({ properties: ['openDirectory'] })`), garantindo compatibilidade com unidades mapeadas e caminhos UNC (`\\servidor\compartilhamento`).
+2. **Redundância e Salvamento Concorrente:**
+   * Todo documento emitido (RO ou Relatório Executivo) é gravado simultaneamente na pasta configurada pelo usuário e espelhado de forma inviolável no diretório seguro do sistema em `%USERPROFILE%\Documents\CCO Security Suite\exports`.
+3. **Padrão Oficial de Nomenclatura de Arquivos:**
+   * **Relatório de Ocorrência (RO):** `Ocorrência [Protocolo RO] - [Tópico] & [Gravidade] - [Data].pdf`
+   * **Relatório Executivo Consolidado:** `Relatorio_Executivo_CCO_[Periodo]_[Data].pdf`
+   * **Cobrança de 2ª Via / Ressarcimento:** `Cobranca_2via_Credencial_[Colaborador]_[Data].pdf`
+   * **Backup Geral do Sistema:** `backup_cco_YYYY-MM-DD_HH-mm-ss.json`
 
-O sistema elimina divergências visuais entre a visualização em tela e a impressão corporativa através do componente [`RelatorioOcorrenciaOficialDocumento.jsx`](file:///c:/Users/YAGO_ADS_TP/Desktop/CCO/src/modules/ocorrencias/RelatorioOcorrenciaOficialDocumento.jsx) e do CSS em `src/index.css`:
+---
 
-### 4.1 Estrutura Linear Estrita do Documento Oficial (Rev 1.0)
+### 3.5 Padronização da Taxa Financeira de 2ª Via (R$ 30,00) & Modal de Cobrança
+* **Isolamento de Escopo:** Em estrito cumprimento às normas de governança corporativa, os **Relatórios de Ocorrência (RO)** são terminantemente proibidos de conter campos, cálculos ou estimativas financeiras (foco estritamente na apuração dos fatos patrimoniais).
+* **Taxa Fixa Administrativa:** Para controle de credenciais (Provisórios, RFID e Visitantes), qualquer cartão extraviado ou não devolvido gera a cobrança administrativa fixa de **R$ 30,00** para custeio da 2ª via física.
+* **Modal e Ficha de Cobrança em PDF:** O Dashboard disponibiliza o botão **Cobrança 2ª Via**, permitindo selecionar inadimplências e emitir a **Ficha Oficial de Cobrança em PDF** (`Cobranca_2via_Credencial_*.pdf`) com protocolo, identificação do colaborador, empresa prestadora e dados bancários/financeiros da organização para desconto em fatura corporativa.
+
+---
+
+### 3.6 Módulo de Backup & Restauração (Merge Inteligente Anti-Duplicidade)
+O sistema conta com um pipeline avançado de proteção e consolidação de dados implementado em `src/services/backupService.js`:
+* **Exportação Unificada (`dialog:salvarArquivoBackup`):** Coleta todos os arquivos JSON e gera uma imagem única e íntegra (`backup_cco_YYYY-MM-DD_HH-mm-ss.json`).
+* **Restauração Segura com Diagnóstico Prévio:** Antes de aplicar qualquer alteração, o sistema analisa o arquivo selecionado e exibe contadores em tempo real de novos registros, registros já existentes e duplicidades evitadas.
+* **Algoritmo de Fusão Não-Destrutiva:** A fusão é orientada por chaves primárias imutáveis (`numeroRO`, chave composta de crachá/data/hora de provisórios, RG/data/hora de visitantes e matrícula de operadores/vigilantes). Registros existentes são 100% preservados, registros inéditos são adicionados e colisões são descartadas de forma atômica.
+
+---
+
+## 4. Pipeline de Impressão e Relatórios Oficiais
+
+### 4.1 Estrutura Linear Estrita do Documento Oficial de Ocorrência (RO)
+O componente `RelatorioOcorrenciaOficialDocumento.jsx` e as regras de `@media print` no `index.css` asseguram que o documento impresso seja idêntico ao padrão pericial homologado:
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │ CCO SECURITY SUITE CENTRAL DE CONTROLE OPERACIONAL                     │
@@ -229,62 +270,85 @@ O sistema elimina divergências visuais entre a visualização em tela e a impre
 │ RELATÓRIO DE OCORRÊNCIA (RO)                                           │
 │ Documento emitido para apuração, registro de fatos e controle...       │
 ├────────────────────────────────────────────────────────────────────────┤
-│ APROVADORES (GRID SUPERIOR)                                            │
+│ APROVADORES (GRID SUPERIOR FIXO NO TOPO)                               │
 │ [ Gerente de Site ]    [ Coordenação Segurança ]    [ Fiscal Contrato ]│
 ├────────────────────────────────────────────────────────────────────────┤
 │ 1. DADOS GERAIS DO FATO                                                │
 │ [ Data do Fato ]   [ Horário ]   [ Prédio / Área ]   [ Tópico & Grav. ]│
 ├────────────────────────────────────────────────────────────────────────┤
-│ TÍTULO: [Nome da Ocorrência]                                           │
+│ TÍTULO: [Nome Resumido da Ocorrência]                                  │
 ├────────────────────────────────────────────────────────────────────────┤
-│ 2. RELATO CRONOLÓGICO DOS FATOS (Texto corrido)                        │
+│ 2. RELATO CRONOLÓGICO DOS FATOS (Texto corrido e imparcial)            │
 ├────────────────────────────────────────────────────────────────────────┤
 │ 3. ENVOLVIDOS/IDENTIFICAÇÃO DE PESSOAS (Tabela formal #, Nome, Cargo)  │
 ├────────────────────────────────────────────────────────────────────────┤
-│ 4. REGISTRO FOTOGRÁFICO / ANEXO DE IMAGENS (Anexo X - Legenda)         │
+│ 4. REGISTRO FOTOGRÁFICO / ANEXO DE IMAGENS (Grade 2 cols com legendas) │
 ├────────────────────────────────────────────────────────────────────────┤
 │ RODAPÉ DE AUDITORIA: CCO Security Suite • Protocolo • Data • Pág 1 de 1│
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 4.2 Isenção de Poluição Visual (@media print)
-* `page-break-inside: avoid` aplicado em todos os cards e seções essenciais.
-* Ocultação de menus, botões, modais e campos editáveis (`input`, `textarea`, `select`).
-* Remoção de caixas de assinatura complexas, rubricas fragmentadas, hashes criptográficos visuais gigantes e tags de status duplicadas.
+* Aplicação de `page-break-inside: avoid` em cards, tabelas e evidências fotográficas.
+* Ocultação compulsória de barras de navegação, botões de ação, campos editáveis e modais.
+* Remoção de assinaturas visuais truncadas e códigos desnecessários que poluam a formalidade do documento.
+
+### 4.3 Pipeline do Dashboard Executivo em 4 Módulos Paisagem (A4 Landscape)
+* **Paginação Limpa e Contínua:** Implementada no componente `RelatorioExecutivoPrint.jsx` e estilizada com `@page { size: A4 landscape; margin: 8mm; }`, garantindo que cada um dos 4 dashboards ocupe exatamente uma página paisagem independente (`page-break-after: always`).
+* **Interatividade com Drill-down de Gravidade:** O gráfico de distribuição de severidade (Crítica, Alta, Média, Baixa) opera com botões interativos que aplicam filtros instantâneos às tabelas analíticas inferiores com feedback visual ativo (anéis e efeitos de brilho).
+* **Isolamento Estrito de Filtros:**
+  * O **Filtro Temporal (Data)** atua de forma transversal sobre todos os 4 dashboards.
+  * Os **Filtros de Ocorrências (Prédio, Área, Tópico e Gravidade)** impactam exclusivamente o Dashboard 1 (Ocorrências).
+  * O **Filtro de Empresa** impacta exclusivamente os Dashboards 2, 3 e 4 (Provisórios, Visitantes e RFID), garantindo que a filtragem por prestadora jamais oculte incidentes de segurança patrimonial da planta.
 
 ---
 
-## 5. Guia de Compilação e Deploy (Passo a Passo)
+## 5. Ergonomia de Interface, Acessibilidade e Componentes Padronizados
 
-### 5.1 Pré-requisitos na Máquina de Desenvolvimento
+### 5.1 Ordenação Bidirecional Padronizada (`SortableHeader`)
+* Todas as tabelas de listagem da suíte (Ocorrências, Provisórios, Visitantes, RFID, Operadores e Vigilantes) utilizam o componente reutilizável `SortableHeader`.
+* Fornece indicadores visuais de ordenação (setas para cima/baixo) com suporte a tipos de dados alfanuméricos, datas e numéricos, agilizando auditorias e cruzamentos de informações em tempo real.
+
+### 5.2 Gerenciamento de Foco e Teclado (`ModalKeyboardManager`)
+* Todos os modais e caixas de diálogo do sistema contam com controle de teclado nativo:
+  * Tecla **`ESC`**: Fecha o modal em primeiro plano de forma segura sem perder dados em formulários principais.
+  * Tecla **`Enter`**: Aciona a ação primária de confirmação quando os campos estão devidamente preenchidos.
+  * Retenção de foco para prevenir que interações operacionais atinjam elementos de fundo da aplicação.
+
+---
+
+## 6. Guia de Compilação e Deploy (Passo a Passo)
+
+### 6.1 Pré-requisitos na Máquina de Desenvolvimento
 * **Sistema Operacional:** Windows 10 ou 11 (64-bit).
 * **Node.js:** Versão 18.x ou superior (LTS recomendada).
 * **NPM:** Versão 9.x ou superior.
 * **Git:** Para versionamento de código.
 
-### 5.2 Comandos de Compilação e Empacotamento
+### 6.2 Comandos de Compilação e Empacotamento
 
 | Comando | Descrição Técnica |
 | :--- | :--- |
-| `npm run dev` | Inicia o servidor Vite em modo web. |
-| `npm run electron:dev` | Inicia o servidor Vite e o Electron simultaneamente com Hot-Reload. |
-| `npm run clean:data` | Executa o script de higienização que zera os bancos aplicando o template oficial. |
-| `npm run generate:icon` | Compila o ícone `build/icon.ico` com múltiplas resoluções nativas. |
+| `npm run dev` | Inicia o servidor Vite em modo web convencional. |
+| `npm run electron:dev` | Inicia o servidor Vite e o runtime Electron simultaneamente com Hot-Reload. |
+| `npm run clean:data` | Executa o script de higienização que restaura o banco ao template limpo oficial. |
+| `npm run generate:icon` | Compila o ícone `build/icon.ico` com múltiplas resoluções nativas (256 a 16 px). |
 | `npm run generate:docs-pdf` | Gera os 3 PDFs oficiais homologados pelas normas ABNT na pasta `docs/`. |
-| `npm run build:pdf` | Compila o Manual do Usuário Markdown para PDF. |
+| `npm run build:pdf` | Compila o Manual do Usuário Markdown para PDF ilustrado. |
 | **`npm run build:exe`** | **Gera o Instalador Oficial (.exe NSIS)** com assistente de instalação e atalhos. |
-| **`npm run build:portable`** | **Gera o Executável Portátil (.exe único)** pronto para rodar sem instalação. |
-| **`npm run build:all`** | Compila tanto o Instalador quanto o Portátil na mesma execução. |
+| **`npm run build:portable`** | **Gera o Executável Portátil (.exe único)** autônomo sem necessidade de instalação. |
+| **`npm run build:all`** | Compila simultaneamente o Instalador e o Portátil na pasta `dist/`. |
 
 ---
 
-## 6. Rotinas de Backup e Recuperação de Desastres
+## 7. Rotinas de Backup e Recuperação de Desastres
 
-* **Onde estão os dados?** Todos os registros operacionais residem no diretório `data/` (ou em `%APPDATA%\CCO Security Suite\database\data\`).
-* **Como fazer Backup Oficial:**  
-  Acesse a aba **Configurações** usando a Senha Mestra e clique no botão **Fazer Backup / Exportar**. O arquivo gerado conterá a imagem completa e estruturada de todas as bases.
-* **Como Restaurar com Segurança:**  
-  Acesse a aba **Configurações**, clique em **Restaurar Backup / Importar**, selecione o arquivo e confirme no modal de pré-análise. O algoritmo de **Merge Inteligente** integrará os registros sem perdas e sem duplicidades.
+* **Localização Física dos Dados:** Todos os registros operacionais residem no diretório `data/` do projeto (ou em `%APPDATA%\CCO Security Suite\database\data\` em instalações em produção).
+* **Rotina de Backup Preventivo:**  
+  Acesse a aba **Configurações** mediante validação da Senha Mestra e clique em **Fazer Backup / Exportar**. O arquivo gerado conterá a imagem consolidada e estruturada de todas as bases.
+* **Procedimento de Restauração em Contingência:**  
+  Acesse **Configurações** > **Restaurar Backup / Importar**, selecione o arquivo de backup e analise o sumário de diagnóstico. O mecanismo de **Merge Inteligente** integrará todos os registros inéditos sem perdas e sem duplicidades.
 
 ---
-*Manual técnico homologado para a equipe de Tecnologia da Informação e Segurança Patrimonial (Rev 1.0).*
+*Documento de Arquitetura e Engenharia de Software homologado para a equipe de TI e Operações de Segurança Patrimonial (Rev 1.1).*
+

@@ -1,42 +1,56 @@
 import * as XLSX from 'xlsx';
+import databaseTemplate from '../../data/database_template.json';
 
 const STORAGE_KEY = 'cco_vigilantes_base';
 
-export const VIGILANTES_INICIAIS = [
-  {
-    id: 'vig-1',
-    nome: 'Vigilante Portaria 1',
-    matricula: 'VIG-2001',
-    posto: 'Portaria 1 - Principal',
-    cargo: 'Vigilante Portaria 1',
-    turno: '12x36 Diurno',
-    status: 'Ativo',
-    observacoes: 'Posto principal de controle de acesso (P1)',
-    dataCadastro: '2026-01-01'
-  },
-  {
-    id: 'vig-2',
-    nome: 'Vigilante Portaria 2',
-    matricula: 'VIG-2002',
-    posto: 'Portaria 2 - Cargas & Serviços',
-    cargo: 'Vigilante Portaria 2',
-    turno: '12x36 Diurno',
-    status: 'Ativo',
-    observacoes: 'Posto de controle de acesso de serviços / carga (P2)',
-    dataCadastro: '2026-01-01'
-  },
-  {
-    id: 'vig-3',
-    nome: 'Vigilante Ronda',
-    matricula: 'VIG-2003',
-    posto: 'Ronda Operacional',
-    cargo: 'Vigilante Ronda',
-    turno: '12x36 Diurno',
-    status: 'Ativo',
-    observacoes: 'Ronda perimetral e fiscalização móvel',
-    dataCadastro: '2026-01-01'
-  }
-];
+export const VIGILANTES_INICIAIS = (databaseTemplate && Array.isArray(databaseTemplate.vigilantes) && databaseTemplate.vigilantes.length > 0)
+  ? databaseTemplate.vigilantes
+  : [
+      {
+        id: 'vig-1',
+        nome: 'Vigilante Portaria 1',
+        matricula: 'VIG-2001',
+        posto: 'Portaria 1',
+        cargo: 'Vigilante Portaria 1',
+        turno: '12x36 Diurno',
+        status: 'Ativo',
+        observacoes: 'Posto principal de controle de acesso (P1)',
+        dataCadastro: '2026-01-01'
+      },
+      {
+        id: 'vig-2',
+        nome: 'Vigilante Portaria 2',
+        matricula: 'VIG-2002',
+        posto: 'Portaria 2',
+        cargo: 'Vigilante Portaria 2',
+        turno: '12x36 Diurno',
+        status: 'Ativo',
+        observacoes: 'Posto de controle de acesso de serviços / carga (P2)',
+        dataCadastro: '2026-01-01'
+      },
+      {
+        id: 'vig-3',
+        nome: 'Vigilante Ronda',
+        matricula: 'VIG-2003',
+        posto: 'Caldeira',
+        cargo: 'Vigilante Ronda',
+        turno: '12x36 Diurno',
+        status: 'Ativo',
+        observacoes: 'Posto Caldeira e fiscalização móvel',
+        dataCadastro: '2026-01-01'
+      },
+      {
+        id: 'vig-4',
+        nome: 'Vigilante Cobertura',
+        matricula: 'VIG-2004',
+        posto: 'Cobertura',
+        cargo: 'Vigilante Cobertura',
+        turno: '12x36 Diurno',
+        status: 'Ativo',
+        observacoes: 'Apoio operacional e cobertura nos postos',
+        dataCadastro: '2026-01-01'
+      }
+    ];
 
 /**
  * Carrega a lista completa de vigilantes de posto do backend local com fallback ao localStorage
@@ -195,7 +209,7 @@ export async function adicionarVigilante(dados) {
     id: `vig-${Date.now()}`,
     nome: nomeLimpo,
     matricula: matriculaLimpa || `VIG-${Math.floor(1000 + Math.random() * 9000)}`,
-    posto: dados.posto || dados.cargo || 'Portaria 1 - Principal',
+    posto: dados.posto || dados.cargo || 'Portaria 1',
     cargo: dados.cargo || dados.posto || 'Vigilante Portaria 1',
     turno: dados.turno || '12x36 Diurno',
     status: dados.status || 'Ativo',

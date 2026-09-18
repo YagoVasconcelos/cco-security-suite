@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CCO Security Suite — Ativação de Segurança & Licenciamento</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: #020617;
+      color: #f8fafc;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .logo {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #2563eb, #4f46e5);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+      border: 1px solid rgba(96, 165, 250, 0.4);
+      flex-shrink: 0;
+    }
+    .logo svg {
+      width: 28px;
+      height: 28px;
+      fill: none;
+      stroke: #ffffff;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .title-group h1 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge-rev {
+      background: rgba(14, 165, 233, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(14, 165, 233, 0.3);
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+    }
+    .subtitle {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding-top: 16px;
+      overflow-y: auto;
+    }
+    .hwid-box {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .hwid-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+    }
+    .hwid-value {
+      font-family: monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: #38bdf8;
+      letter-spacing: 0.05em;
+    }
+    .info-text {
+      font-size: 12px;
+      color: #cbd5e1;
+      line-height: 1.4;
+    }
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .input-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #e2e8f0;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    input[type="password"], input[type="text"] {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 40px 10px 12px;
+      color: #ffffff;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="password"]:focus, input[type="text"]:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+    .toggle-pass {
+      position: absolute;
+      right: 10px;
+      background: none;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px;
+    }
+    .toggle-pass:hover {
+      color: #94a3b8;
+    }
+    .terms-box {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 10px;
+      height: 95px;
+      overflow-y: scroll;
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+    .terms-box::-webkit-scrollbar {
+      width: 6px;
+    }
+    .terms-box::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 11.5px;
+      color: #cbd5e1;
+      cursor: pointer;
+      line-height: 1.35;
+    }
+    .checkbox-group input {
+      margin-top: 2px;
+      cursor: pointer;
+      accent-color: #2563eb;
+    }
+    .error-msg {
+      background: rgba(225, 29, 72, 0.15);
+      border: 1px solid rgba(225, 29, 72, 0.3);
+      color: #fda4af;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 11.5px;
+      font-weight: 600;
+      display: none;
+    }
+    .footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding-top: 14px;
+      border-top: 1px solid #1e293b;
+    }
+    button.btn {
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    button.btn-secondary {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+    }
+    button.btn-secondary:hover {
+      background: #334155;
+      color: #ffffff;
+    }
+    button.btn-primary {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border: 1px solid rgba(96, 165, 250, 0.4);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+    }
+    button.btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #1d4ed8, #1e40af);
+    }
+    button.btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <path d="m9 12 2 2 4-4"/>
+      </svg>
+    </div>
+    <div class="title-group">
+      <h1>CCO Security Suite <span class="badge-rev">Rev 1.2</span></h1>
+      <p class="subtitle">Ativação de Segurança e Vinculação de Hardware (HWID)</p>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="hwid-box">
+      <span class="hwid-label">Identificador de Hardware Desta Máquina (HWID):</span>
+      <span class="hwid-value" id="hwidDisplay">Detectando hardware...</span>
+    </div>
+
+    <p class="info-text">
+      Este software é de distribuição controlada e opera vinculado ao hardware desta estação de trabalho. Para liberar a execução, informe a Chave de Instalação e aceite os termos de licença.
+    </p>
+
+    <div class="input-group">
+      <label class="input-label" for="passwordInput">Chave de Instalação / Senha de Ativação:</label>
+      <div class="input-wrapper">
+        <input type="password" id="passwordInput" placeholder="Digite a chave de segurança autorizada..." autocomplete="off">
+        <button type="button" class="toggle-pass" id="toggleBtn">VER</button>
+      </div>
+    </div>
+
+    <div class="terms-box">
+      <strong>TERMOS DE USO E PROTEÇÃO DE PROPRIEDADE INTELECTUAL:</strong><br>
+      1. O software CCO Security Suite é de propriedade exclusiva de TecPrimus Soluções Tecnológicas e protegido pela Lei nº 9.609/1998 e 9.610/1998.<br>
+      2. É estritamente vedada a reprodução, cópia de diretórios para computadores não autorizados ou tentativa de engenharia reversa.<br>
+      3. A ativação vincula irrevogavelmente esta instalação aos componentes físicos deste computador. Cópias para outro PC serão bloqueadas automaticamente.<br>
+      4. As senhas de ativação possuem escopo isolado de quaisquer credenciais operacionais internas.
+    </div>
+
+    <label class="checkbox-group">
+      <input type="checkbox" id="termsCheck">
+      <span>Li e concordo com os Termos de Licença, Política de Segurança e Proteção de Propriedade Intelectual.</span>
+    </label>
+
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+
+  <div class="footer">
+    <button type="button" class="btn btn-secondary" id="btnCancel">Cancelar e Sair</button>
+    <button type="button" class="btn btn-primary" id="btnActivate" disabled>Validar e Ativar Licença</button>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    const hwidDisplay = document.getElementById('hwidDisplay');
+    const passwordInput = document.getElementById('passwordInput');
+    const toggleBtn = document.getElementById('toggleBtn');
+    const termsCheck = document.getElementById('termsCheck');
+    const btnActivate = document.getElementById('btnActivate');
+    const btnCancel = document.getElementById('btnCancel');
+    const errorMsg = document.getElementById('errorMsg');
+
+    // Solicita HWID detectado ao processo principal
+    ipcRenderer.invoke('licensing:obterHwid').then(hwid => {
+      hwidDisplay.textContent = hwid || 'NÃO DETECTADO';
+    });
+
+    // Toggle de visibilidade da senha
+    toggleBtn.addEventListener('click', () => {
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        toggleBtn.textContent = 'OCULTAR';
+      } else {
+        passwordInput.type = 'password';
+        toggleBtn.textContent = 'VER';
+      }
+    });
+
+    function checkFormState() {
+      const hasPass = passwordInput.value.trim().length > 0;
+      const termsAccepted = termsCheck.checked;
+      btnActivate.disabled = !(hasPass && termsAccepted);
+    }
+
+    passwordInput.addEventListener('input', checkFormState);
+    termsCheck.addEventListener('change', checkFormState);
+
+    // Cancelar e sair
+    btnCancel.addEventListener('click', () => {
+      ipcRenderer.send('licensing:cancelar');
+    });
+
+    // Submeter ativação
+    async function submeterAtivacao() {
+      if (btnActivate.disabled) return;
+      errorMsg.style.display = 'none';
+      btnActivate.disabled = true;
+      btnActivate.textContent = 'Validando Hardware...';
+
+      const senha = passwordInput.value.trim();
+      const resultado = await ipcRenderer.invoke('licensing:ativar', senha);
+
+      if (resultado && resultado.sucesso) {
+        btnActivate.textContent = 'Ativado com Sucesso!';
+        btnActivate.style.background = '#10b981';
+      } else {
+        errorMsg.textContent = resultado ? resultado.message : 'Erro ao processar ativação.';
+        errorMsg.style.display = 'block';
+        btnActivate.disabled = false;
+        btnActivate.textContent = 'Validar e Ativar Licença';
+        passwordInput.focus();
+        passwordInput.select();
+      }
+    }
+
+    btnActivate.addEventListener('click', submeterAtivacao);
+    passwordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !btnActivate.disabled) {
+        submeterAtivacao();
+      }
+    });
+
+    passwordInput.focus();
+  </script>
+</body>
+</html>

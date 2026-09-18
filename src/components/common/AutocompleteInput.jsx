@@ -126,6 +126,7 @@ export default function AutocompleteInput({
         handleSelect(sugestoes[selectedIndex]);
       }
     } else if (e.key === 'Escape') {
+      e.stopPropagation();
       setIsOpen(false);
     }
   };

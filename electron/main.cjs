@@ -1,11 +1,14 @@
 // Processo Principal do Electron - CCO Security Suite
 // Janela Nativa Corporativa, Sem Aparência de Navegador, Maximizada por Padrão
-const { app, BrowserWindow, Menu, shell, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { startServer } = require('./server.cjs');
+const cryptoHelper = require('./cryptoHelper.cjs');
+const licensingHelper = require('./licensingHelper.cjs');
 
 let mainWindow = null;
+let activationWindow = null;
 let embeddedServer = null;
 
 // Handlers IPC para Diálogos Nativos do Windows (Seleção de Pasta e Abertura no Explorer)
@@ -122,8 +125,168 @@ ipcMain.handle('app:obterDiretoriosPadrao', () => {
   };
 });
 
+// Handlers IPC Nativos de Segurança com safeStorage (DPAPI) e PBKDF2
+ipcMain.handle('seguranca:validarSenha', async (event, senhaDigitada) => {
+  try {
+    const rootDir = path.resolve(__dirname, '..');
+    const dataDir = path.join(rootDir, 'data');
+    const dataJsonPath = path.join(dataDir, 'seguranca.json');
+    const rootJsonPath = path.join(rootDir, 'seguranca.json');
+
+    const config = cryptoHelper.carregarOuMigrarSeguranca(dataJsonPath, rootJsonPath, safeStorage);
+    const valido = cryptoHelper.verificarSenha(senhaDigitada, config);
+    return { success: true, valido, message: valido ? 'Autorizado' : 'Senha incorreta' };
+  } catch (err) {
+    console.error('[Electron IPC] Erro ao validar senha:', err);
+    return { success: false, valido: false, error: err.message };
+  }
+});
+
+ipcMain.handle('seguranca:salvarSenha', async (event, { senhaAtual, novaSenha }) => {
+  try {
+    const rootDir = path.resolve(__dirname, '..');
+    const dataDir = path.join(rootDir, 'data');
+    const dataJsonPath = path.join(dataDir, 'seguranca.json');
+    const rootJsonPath = path.join(rootDir, 'seguranca.json');
+
+    const config = cryptoHelper.carregarOuMigrarSeguranca(dataJsonPath, rootJsonPath, safeStorage);
+    if (senhaAtual !== undefined) {
+      const ok = cryptoHelper.verificarSenha(senhaAtual, config);
+      if (!ok) {
+        return { success: false, error: 'A senha mestra atual informada está incorreta.' };
+      }
+    }
+
+    if (!novaSenha || typeof novaSenha !== 'string' || novaSenha.trim().length < 4) {
+      return { success: false, error: 'A nova senha deve possuir pelo menos 4 caracteres.' };
+    }
+
+    const novo = cryptoHelper.gerarRegistroSeguro(novaSenha.trim(), safeStorage);
+    cryptoHelper.salvarEmDisco(dataJsonPath, rootJsonPath, novo);
+    return { success: true, message: 'Senha mestra alterada com sucesso!', dataAtualizacao: novo.dataAtualizacao };
+  } catch (err) {
+    console.error('[Electron IPC] Erro ao salvar senha:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('seguranca:obterStatus', async () => {
+  try {
+    const rootDir = path.resolve(__dirname, '..');
+    const dataDir = path.join(rootDir, 'data');
+    const dataJsonPath = path.join(dataDir, 'seguranca.json');
+    const rootJsonPath = path.join(rootDir, 'seguranca.json');
+
+    const config = cryptoHelper.carregarOuMigrarSeguranca(dataJsonPath, rootJsonPath, safeStorage);
+    return cryptoHelper.obterMetadadosPublicos(config);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+
+function getResolvedConfiguredExportDir(caminhoRede) {
+  const documents = app.getPath('documents');
+  const userData = app.getPath('userData');
+  const rootDir = path.resolve(__dirname, '..');
+
+  let configured = caminhoRede;
+  if (!configured || typeof configured !== 'string' || !configured.trim()) {
+    const possiblePaths = [
+      path.join(rootDir, 'data', 'responsaveis.json'),
+      path.join(userData, 'data', 'responsaveis.json'),
+      path.join(userData, 'responsaveis.json'),
+      path.join(userData, 'database', 'data', 'responsaveis.json'),
+      path.join(userData, 'database', 'responsaveis.json'),
+      path.join(path.dirname(app.getPath('exe')), 'data', 'responsaveis.json')
+    ];
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        try {
+          const resp = JSON.parse(fs.readFileSync(p, 'utf-8'));
+          if (resp && resp.caminhoRede) {
+            configured = resp.caminhoRede;
+            break;
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
+  const agora = new Date();
+  const ano = String(agora.getFullYear());
+  const mesNum = String(agora.getMonth() + 1).padStart(2, '0');
+  const mesesNomes = ['JANEIRO', 'FEVEREIRO', 'MARCO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+  const mesNome = mesesNomes[agora.getMonth()];
+  const periodoSubpasta = path.join(ano, `${mesNum}.${mesNome}`);
+
+  let baseDir = '';
+  if (configured && typeof configured === 'string' && configured.trim()) {
+    let trimmed = configured.trim();
+    // Suporte a placeholders se existirem
+    trimmed = trimmed
+      .replace(/\{ANO\}/gi, ano)
+      .replace(/\{MES\}/gi, mesNum)
+      .replace(/\{MES_NOME\}/gi, mesNome);
+
+    if (path.isAbsolute(trimmed) || trimmed.startsWith('\\\\')) {
+      baseDir = trimmed;
+    } else {
+      baseDir = path.join(documents, 'CCO Security Suite', trimmed);
+    }
+  } else {
+    baseDir = path.join(documents, 'CCO Security Suite', 'MAPA DE CALOR');
+  }
+
+  // Se o caminho configurado for uma pasta geral (não contiver ano nem o mês corrente), organiza em subpasta Ano/Mês
+  const baseNormalized = baseDir.toUpperCase();
+  if (!baseNormalized.includes(ano) && !baseNormalized.includes(mesNome)) {
+    baseDir = path.join(baseDir, periodoSubpasta);
+  }
+
+  try {
+    if (!fs.existsSync(baseDir)) {
+      fs.mkdirSync(baseDir, { recursive: true });
+    }
+    return baseDir;
+  } catch (err) {
+    console.warn('[Electron] Falha ao criar diretório configurado, usando exports padrão:', err.message);
+    const fallbackDir = path.join(documents, 'CCO Security Suite', 'exports');
+    if (!fs.existsSync(fallbackDir)) fs.mkdirSync(fallbackDir, { recursive: true });
+    return fallbackDir;
+  }
+}
+
+function getNonConflictingPath(targetDir, filename) {
+  const ext = path.extname(filename);
+  let base = path.basename(filename, ext);
+
+  let counter = 1;
+  const matchSuffix = base.match(/^(.*)\s*\((\d+)\)$/);
+  if (matchSuffix) {
+    base = matchSuffix[1].trim();
+    counter = parseInt(matchSuffix[2], 10);
+  }
+
+  // Verifica se o arquivo com o nome exato passado existe
+  const directPath = path.join(targetDir, filename);
+  if (!fs.existsSync(directPath)) {
+    return { finalPath: directPath, finalFilename: filename };
+  }
+
+  // Se já existe, procura o próximo índice sequencial (counter + 1, ...)
+  while (true) {
+    counter++;
+    const candidateFilename = `${base} (${counter})${ext}`;
+    const candidatePath = path.join(targetDir, candidateFilename);
+    if (!fs.existsSync(candidatePath)) {
+      return { finalPath: candidatePath, finalFilename: candidateFilename };
+    }
+  }
+}
+
 // Handler nativo para exportação em PDF idêntica à impressão via Chromium printToPDF
-ipcMain.handle('app:salvarPdfNativo', async (event, { nomeSugerido, paisagem = true } = {}) => {
+ipcMain.handle('app:salvarPdfNativo', async (event, { nomeSugerido, paisagem = true, caminhoRede } = {}) => {
   try {
     const win = BrowserWindow.getFocusedWindow() || mainWindow;
     if (!win) throw new Error('Janela do aplicativo não encontrada');
@@ -135,17 +298,42 @@ ipcMain.handle('app:salvarPdfNativo', async (event, { nomeSugerido, paisagem = t
       pageSize: 'A4'
     });
 
-    const documents = app.getPath('documents');
-    const exportsDir = path.join(documents, 'CCO Security Suite', 'exports');
-    if (!fs.existsSync(exportsDir)) {
-      fs.mkdirSync(exportsDir, { recursive: true });
+    const targetDir = getResolvedConfiguredExportDir(caminhoRede);
+    const defaultName = nomeSugerido || `Dashboard_Executivo_CCO_${new Date().toISOString().slice(0, 10)}.pdf`;
+
+    const { finalPath, finalFilename } = getNonConflictingPath(targetDir, defaultName);
+    
+    let savedInPrimary = false;
+    try {
+      fs.writeFileSync(finalPath, pdfBuffer);
+      savedInPrimary = true;
+    } catch (writeErr) {
+      console.warn('[Electron IPC] Falha ao salvar no diretório primário:', writeErr.message);
     }
 
-    const defaultName = nomeSugerido || `Dashboard_Executivo_CCO_${new Date().toISOString().slice(0, 10)}.pdf`;
-    const destPath = path.join(exportsDir, defaultName);
-    fs.writeFileSync(destPath, pdfBuffer);
+    // Cópia de redundância no diretório padrão seguro exports (sem conflito)
+    let backupPath = null;
+    try {
+      const documents = app.getPath('documents');
+      const backupDir = path.join(documents, 'CCO Security Suite', 'exports');
+      if (backupDir !== targetDir || !savedInPrimary) {
+        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+        const { finalPath: safeBackupPath } = getNonConflictingPath(backupDir, finalFilename);
+        fs.writeFileSync(safeBackupPath, pdfBuffer);
+        backupPath = safeBackupPath;
+      }
+    } catch (e) {}
 
-    return { sucesso: true, caminho: destPath, nomeArquivo: defaultName };
+    const resolvedFinalPath = savedInPrimary ? finalPath : (backupPath || finalPath);
+    const resolvedDir = savedInPrimary ? targetDir : (backupPath ? path.dirname(backupPath) : targetDir);
+
+    return {
+      sucesso: true,
+      caminho: resolvedFinalPath,
+      diretorio: resolvedDir,
+      nomeArquivo: finalFilename,
+      fallback: !savedInPrimary
+    };
   } catch (err) {
     console.error('[Electron IPC] Erro ao gerar PDF nativo via printToPDF:', err);
     return { sucesso: false, error: err.message };
@@ -156,11 +344,16 @@ ipcMain.handle('shell:abrirPasta', async (event, folderPath) => {
   try {
     const documents = app.getPath('documents');
     const defaultExports = path.join(documents, 'CCO Security Suite', 'exports');
-    const targetDir = (folderPath && typeof folderPath === 'string' && folderPath.trim())
-      ? (path.isAbsolute(folderPath.trim())
-          ? folderPath.trim()
-          : path.join(documents, 'CCO Security Suite', folderPath.trim()))
-      : defaultExports;
+    let targetDir = defaultExports;
+
+    if (folderPath && typeof folderPath === 'string' && folderPath.trim()) {
+      const trimmed = folderPath.trim();
+      let resolved = path.isAbsolute(trimmed) ? trimmed : path.join(documents, 'CCO Security Suite', trimmed);
+      if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+        resolved = path.dirname(resolved);
+      }
+      targetDir = resolved;
+    }
 
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
@@ -292,7 +485,108 @@ async function createWindow() {
   });
 }
 
+/**
+ * Exibe a janela de ativação de segurança quando o software não possuir licença válida
+ * ou estiver rodando pela primeira vez nesta máquina.
+ */
+function showActivationWindow() {
+  return new Promise((resolve) => {
+    const appIconPath = fs.existsSync(path.join(__dirname, '../public/shield.ico'))
+      ? path.join(__dirname, '../public/shield.ico')
+      : (fs.existsSync(path.join(__dirname, '../build/icon.ico'))
+          ? path.join(__dirname, '../build/icon.ico')
+          : path.join(__dirname, '../public/icon.ico'));
+
+    activationWindow = new BrowserWindow({
+      width: 580,
+      height: 640,
+      resizable: false,
+      maximizable: false,
+      minimizable: true,
+      title: 'CCO Security Suite — Ativação de Segurança & Licenciamento (Rev 1.2)',
+      icon: appIconPath,
+      backgroundColor: '#020617',
+      show: false,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false
+      }
+    });
+
+    activationWindow.loadFile(path.join(__dirname, 'activation.html'));
+
+    activationWindow.once('ready-to-show', () => {
+      activationWindow.show();
+      activationWindow.focus();
+    });
+
+    let activatedSuccessfully = false;
+
+    ipcMain.handle('licensing:obterHwid', () => {
+      return licensingHelper.obterHwidLocal();
+    });
+
+    const handleAtivar = (event, senha) => {
+      const resultado = licensingHelper.ativarLicencaComSenha(senha, app);
+      if (resultado && resultado.sucesso) {
+        activatedSuccessfully = true;
+        setTimeout(() => {
+          if (activationWindow && !activationWindow.isDestroyed()) {
+            activationWindow.close();
+          }
+          ipcMain.removeHandler('licensing:ativar');
+          ipcMain.removeHandler('licensing:obterHwid');
+          resolve(true);
+        }, 800);
+      }
+      return resultado;
+    };
+
+    ipcMain.handle('licensing:ativar', handleAtivar);
+
+    ipcMain.once('licensing:cancelar', () => {
+      if (activationWindow && !activationWindow.isDestroyed()) {
+        activationWindow.close();
+      }
+      app.quit();
+    });
+
+    activationWindow.on('closed', () => {
+      activationWindow = null;
+      if (!activatedSuccessfully) {
+        app.quit();
+      }
+    });
+  });
+}
+
 app.whenReady().then(async () => {
+  // 1. Checagem de Licença e Vinculação de Hardware (HWID Binding)
+  const statusLicenca = licensingHelper.verificarStatusLicenca(app);
+
+  if (statusLicenca.status === 'HWID_MISMATCH') {
+    // Violação de cópia para outro computador detectada!
+    dialog.showMessageBoxSync({
+      type: 'error',
+      title: 'Violação de Licença - CCO Security Suite',
+      message: 'Erro de Violação de Licença / Cópia Não Autorizada',
+      detail: `Esta cópia do software foi ativada para outro computador e não possui autorização para execução neste hardware.\n\nHardware Autorizado: ${statusLicenca.savedHwid}\nHardware Desta Estação: ${statusLicenca.currentHwid}\n\nO aplicativo será encerrado imediatamente para proteger a integridade do sistema.`
+    });
+    app.exit(1);
+    return;
+  }
+
+  if (statusLicenca.status === 'NOT_ACTIVATED') {
+    // Primeira execução, ambiente limpo ou formatação na mesma máquina -> Solicita Chave de Ativação
+    console.log('[Licensing] Licença pendente de ativação. Abrindo janela de ativação...');
+    const ativado = await showActivationWindow();
+    if (!ativado) {
+      app.quit();
+      return;
+    }
+  }
+
+  // 2. Se a licença estiver válida, inicializa a aplicação normalmente
   await createWindow();
 
   app.on('activate', async () => {
@@ -307,3 +601,4 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+

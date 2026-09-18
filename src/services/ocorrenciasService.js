@@ -83,6 +83,40 @@ export function getImageDimensions(dataUrl) {
 }
 
 /**
+ * Formata data ISO para sufixo em nome de arquivo de ocorrência (DD.MM.AAAA)
+ */
+export function formatarDataParaNome(dataStr) {
+  if (!dataStr) {
+    const d = new Date();
+    const dia = String(d.getDate()).padStart(2, '0');
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const ano = d.getFullYear();
+    return `${dia}.${mes}.${ano}`;
+  }
+  if (dataStr.includes('-')) {
+    const partes = dataStr.split('-');
+    if (partes.length === 3) return `${partes[2]}.${partes[1]}.${partes[0]}`;
+  }
+  return String(dataStr).replace(/[\/:]/g, '.');
+}
+
+/**
+ * Gera o nome padronizado oficial de exportação da ocorrência:
+ * Ocorrência [Protocolo RO] - [Tópico] & [Gravidade] - [Data].pdf
+ */
+export function gerarNomeArquivoOcorrencia(formData = {}) {
+  const protocolo = (formData.numeroRO || 'RO-2026').replace(/[\\/:*?"<>|]/g, '-').trim();
+  const topico = (formData.topico || formData.titulo || 'Registro Operacional')
+    .replace(/[\\/:*?"<>|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const gravidade = (formData.gravidade || 'MÉDIA').replace(/[\\/:*?"<>|]/g, '').trim().toUpperCase();
+  const dataFormatada = formatarDataParaNome(formData.data);
+
+  return `Ocorrência ${protocolo} - ${topico} & ${gravidade} - ${dataFormatada}.pdf`;
+}
+
+/**
  * Carrega a lista de ocorrências salvas localmente
  */
 export async function carregarOcorrencias() {
@@ -526,11 +560,8 @@ export async function gerarRelatorioPdf({ formData, envolvidos = [], fotos = [],
     );
   }
 
-  // Gera o nome padronizado do arquivo
-  const tituloLimpo = (formData.titulo || 'Ocorrencia')
-    .replace(/[^a-zA-Z0-9_-]/g, '_')
-    .substring(0, 35);
-  const nomeArquivo = `${formData.numeroRO}_${tituloLimpo}.pdf`;
+  // Gera o nome padronizado do arquivo conforme especificação de rastreabilidade
+  const nomeArquivo = gerarNomeArquivoOcorrencia(formData);
 
   // Gera base64 e Blob
   const base64Pdf = doc.output('datauristring');

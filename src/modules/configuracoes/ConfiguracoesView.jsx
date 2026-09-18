@@ -43,6 +43,7 @@ import {
   Loader2
 } from 'lucide-react';
 import PainelBackupRestauracao from './PainelBackupRestauracao';
+import SortableHeader, { compararValores } from '../../components/common/SortableHeader';
 import {
   carregarOperadores,
   salvarOperadores,
@@ -91,6 +92,33 @@ import {
   restaurarResponsaveisPadrao,
   PADRAO_RESPONSAVEIS
 } from '../../services/responsaveisService';
+import {
+  carregarCargos,
+  adicionarCargo,
+  editarCargo,
+  excluirCargo,
+  alternarStatusCargo,
+  restaurarCargosPadrao,
+  carregarSugestoesObservacoes,
+  adicionarSugestaoObservacao,
+  editarSugestaoObservacao,
+  excluirSugestaoObservacao,
+  alternarStatusSugestaoObservacao,
+  restaurarSugestoesObservacoesPadrao,
+  obterCargosSincrono,
+  obterSugestoesSincrono,
+  CARGOS_PADRAO,
+  SUGESTOES_OBS_PADRAO
+} from '../../services/cargosService';
+import {
+  carregarTaxonomia,
+  adicionarPredioArea,
+  editarPredioArea,
+  excluirPredioArea,
+  alternarStatusPredioArea,
+  restaurarTaxonomiaPadrao,
+  obterTaxonomiaSincrona
+} from '../../services/taxonomiaService';
 
 export default function ConfiguracoesView({ onBloquear }) {
   // Controle da Aba Ativa
@@ -143,7 +171,7 @@ export default function ConfiguracoesView({ onBloquear }) {
   const [formVigilante, setFormVigilante] = useState({
     nome: '',
     matricula: '',
-    posto: 'Portaria 1 - Principal',
+    posto: 'Portaria 1',
     cargo: 'Vigilante Portaria 1',
     turno: '12x36 Diurno',
     status: 'Ativo',
@@ -189,6 +217,65 @@ export default function ConfiguracoesView({ onBloquear }) {
   const [obsExcluindo, setObsExcluindo] = useState(null);
 
   // =========================================================================
+  // 3.1. ESTADOS E CRUD: CARGOS (OPERADORES & VIGILANTES)
+  // =========================================================================
+  const [cargos, setCargos] = useState(() => obterCargosSincrono());
+  const [loadingCargos, setLoadingCargos] = useState(true);
+  const [buscaCargo, setBuscaCargo] = useState('');
+  const [filtroTipoCargo, setFiltroTipoCargo] = useState('TODOS');
+  const [filtroStatusCargo, setFiltroStatusCargo] = useState('TODOS');
+
+  const [modalCargoAberto, setModalCargoAberto] = useState(false);
+  const [cargoEditando, setCargoEditando] = useState(null);
+  const [formCargo, setFormCargo] = useState({
+    nome: '',
+    tipo: 'OPERADOR', // 'OPERADOR' | 'VIGILANTE'
+    status: 'Ativo'
+  });
+  const [erroFormCargo, setErroFormCargo] = useState('');
+  const [cargoExcluindo, setCargoExcluindo] = useState(null);
+
+  // =========================================================================
+  // 3.2. ESTADOS E CRUD: SUGESTÕES RÁPIDAS DE OBSERVAÇÕES
+  // =========================================================================
+  const [sugestoesObs, setSugestoesObs] = useState(() => obterSugestoesSincrono());
+  const [loadingSugestoes, setLoadingSugestoes] = useState(true);
+  const [buscaSugestao, setBuscaSugestao] = useState('');
+  const [filtroTipoSugestao, setFiltroTipoSugestao] = useState('TODOS');
+  const [filtroStatusSugestao, setFiltroStatusSugestao] = useState('TODOS');
+
+  const [modalSugestaoAberto, setModalSugestaoAberto] = useState(false);
+  const [sugestaoEditando, setSugestaoEditando] = useState(null);
+  const [formSugestao, setFormSugestao] = useState({
+    texto: '',
+    tipo: 'OPERADOR', // 'OPERADOR' | 'VIGILANTE'
+    status: 'Ativo'
+  });
+  const [erroFormSugestao, setErroFormSugestao] = useState('');
+  const [sugestaoExcluindo, setSugestaoExcluindo] = useState(null);
+
+  // =========================================================================
+  // 3.3. ESTADOS E CRUD: MAPEAMENTO DE PRÉDIOS E ÁREAS (OCORRÊNCIAS)
+  // =========================================================================
+  const [taxonomia, setTaxonomia] = useState(() => obterTaxonomiaSincrona());
+  const [loadingTaxonomia, setLoadingTaxonomia] = useState(true);
+  const [buscaTaxonomia, setBuscaTaxonomia] = useState('');
+  const [filtroPredioTaxonomia, setFiltroPredioTaxonomia] = useState('TODOS');
+  const [filtroStatusTaxonomia, setFiltroStatusTaxonomia] = useState('TODOS');
+  const [sortTaxonomia, setSortTaxonomia] = useState({ field: 'predio', order: 'asc' });
+
+  const [modalTaxonomiaAberto, setModalTaxonomiaAberto] = useState(false);
+  const [itemTaxonomiaEditando, setItemTaxonomiaEditando] = useState(null);
+  const [formTaxonomia, setFormTaxonomia] = useState({
+    predio: '',
+    area: '',
+    status: 'Ativo'
+  });
+  const [erroFormTaxonomia, setErroFormTaxonomia] = useState('');
+  const [itemTaxonomiaExcluindo, setItemTaxonomiaExcluindo] = useState(null);
+  const [modoNovoPredio, setModoNovoPredio] = useState(false);
+
+  // =========================================================================
   // 4. ESTADOS: SEGURANÇA DO SISTEMA (SENHA MESTRA)
   // =========================================================================
   const [senhaAtual, setSenhaAtual] = useState('');
@@ -210,6 +297,23 @@ export default function ConfiguracoesView({ onBloquear }) {
   const [salvandoResponsaveis, setSalvandoResponsaveis] = useState(false);
   const [formResponsaveis, setFormResponsaveis] = useState(PADRAO_RESPONSAVEIS);
   const [houveAlteracaoResponsaveis, setHouveAlteracaoResponsaveis] = useState(false);
+
+  // =========================================================================
+  // ESTADOS DE ORDENAÇÃO DINÂMICA DAS TABELAS (SORTABLE HEADERS)
+  // =========================================================================
+  const [sortOperadores, setSortOperadores] = useState({ field: 'nome', order: 'asc' });
+  const [sortVigilantes, setSortVigilantes] = useState({ field: 'nome', order: 'asc' });
+  const [sortTurnos, setSortTurnos] = useState({ field: 'nome', order: 'asc' });
+  const [sortObs, setSortObs] = useState({ field: 'nome', order: 'asc' });
+  const [sortCargos, setSortCargos] = useState({ field: 'nome', order: 'asc' });
+  const [sortSugestoes, setSortSugestoes] = useState({ field: 'texto', order: 'asc' });
+
+  const handleSortOperadores = (field) => setSortOperadores(prev => ({ field, order: prev.field === field && prev.order === 'asc' ? 'desc' : 'asc' }));
+  const handleSortVigilantes = (field) => setSortVigilantes(prev => ({ field, order: prev.field === field && prev.order === 'asc' ? 'desc' : 'asc' }));
+  const handleSortTurnos = (field) => setSortTurnos(prev => ({ field, order: prev.field === field && prev.order === 'asc' ? 'desc' : 'asc' }));
+  const handleSortObs = (field) => setSortObs(prev => ({ field, order: prev.field === field && prev.order === 'asc' ? 'desc' : 'asc' }));
+  const handleSortCargos = (field) => setSortCargos(prev => ({ field, order: prev.field === field && prev.order === 'asc' ? 'desc' : 'asc' }));
+  const handleSortSugestoes = (field) => setSortSugestoes(prev => ({ field, order: prev.field === field && prev.order === 'asc' ? 'desc' : 'asc' }));
 
   // =========================================================================
   // INICIALIZAÇÃO & LISTENERS GLOBAIS
@@ -255,6 +359,20 @@ export default function ConfiguracoesView({ onBloquear }) {
         carregarDadosResponsaveis(false);
       }
     };
+    const handleCargosChanged = (e) => {
+      if (e && e.detail && Array.isArray(e.detail)) {
+        setCargos(e.detail);
+      } else {
+        carregarListaCargos(false);
+      }
+    };
+    const handleSugestoesObsChanged = (e) => {
+      if (e && e.detail && Array.isArray(e.detail)) {
+        setSugestoesObs(e.detail);
+      } else {
+        carregarListaSugestoesObs(false);
+      }
+    };
 
     window.addEventListener('cco_operadores_changed', handleOperadoresChanged);
     window.addEventListener('cco_vigilantes_changed', handleVigilantesChanged);
@@ -262,6 +380,16 @@ export default function ConfiguracoesView({ onBloquear }) {
     window.addEventListener('cco_observacoes_changed', handleObservacoesChanged);
     window.addEventListener('cco_senha_changed', handleSenhaChanged);
     window.addEventListener('cco_responsaveis_changed', handleResponsaveisChanged);
+    window.addEventListener('cco_cargos_changed', handleCargosChanged);
+    window.addEventListener('cco_sugestoes_obs_changed', handleSugestoesObsChanged);
+    const handleTaxonomiaChanged = (e) => {
+      if (e && e.detail && Array.isArray(e.detail)) {
+        setTaxonomia(e.detail);
+      } else {
+        carregarListaTaxonomia(false);
+      }
+    };
+    window.addEventListener('cco_taxonomia_changed', handleTaxonomiaChanged);
 
     return () => {
       window.removeEventListener('cco_operadores_changed', handleOperadoresChanged);
@@ -270,6 +398,9 @@ export default function ConfiguracoesView({ onBloquear }) {
       window.removeEventListener('cco_observacoes_changed', handleObservacoesChanged);
       window.removeEventListener('cco_senha_changed', handleSenhaChanged);
       window.removeEventListener('cco_responsaveis_changed', handleResponsaveisChanged);
+      window.removeEventListener('cco_cargos_changed', handleCargosChanged);
+      window.removeEventListener('cco_sugestoes_obs_changed', handleSugestoesObsChanged);
+      window.removeEventListener('cco_taxonomia_changed', handleTaxonomiaChanged);
     };
   }, []);
 
@@ -279,6 +410,9 @@ export default function ConfiguracoesView({ onBloquear }) {
       carregarListaVigilantes(),
       carregarListaTurnos(),
       carregarListaObservacoes(),
+      carregarListaCargos(),
+      carregarListaSugestoesObs(),
+      carregarListaTaxonomia(),
       carregarInfoSeguranca(),
       carregarDadosResponsaveis()
     ]);
@@ -462,7 +596,7 @@ export default function ConfiguracoesView({ onBloquear }) {
 
   const operadoresFiltrados = useMemo(() => {
     const lista = Array.isArray(operadores) ? operadores : [];
-    return lista.filter(op => {
+    const filtrados = lista.filter(op => {
       if (!op) return false;
       const matchBusca =
         (op.nome || '').toLowerCase().includes(buscaOperadores.toLowerCase()) ||
@@ -478,7 +612,9 @@ export default function ConfiguracoesView({ onBloquear }) {
 
       return matchBusca && matchStatus && matchTurno;
     });
-  }, [operadores, buscaOperadores, filtroStatusOperador, filtroTurnoOperador]);
+
+    return [...filtrados].sort((a, b) => compararValores(a, b, sortOperadores.field, sortOperadores.order));
+  }, [operadores, buscaOperadores, filtroStatusOperador, filtroTurnoOperador, sortOperadores]);
 
   const turnosDisponiveisOperador = useMemo(() => {
     const lista = Array.isArray(turnos) ? turnos : [];
@@ -489,10 +625,15 @@ export default function ConfiguracoesView({ onBloquear }) {
 
   const abrirModalNovoOperador = () => {
     setOperadorEditando(null);
+    carregarListaCargos(false);
+    carregarListaSugestoesObs(false);
+    const cargoPadrao = (cargosOperadoresAtivos && cargosOperadoresAtivos.length > 0)
+      ? cargosOperadoresAtivos[0]
+      : 'Op. Central de Segurança';
     setFormOperador({
       nome: '',
       matricula: `CCO-${Math.floor(1000 + Math.random() * 9000)}`,
-      cargo: 'Operador CCO',
+      cargo: cargoPadrao,
       turno: turnosDisponiveisOperador[0] || '12x36 Diurno',
       status: 'Ativo',
       observacoes: ''
@@ -503,10 +644,12 @@ export default function ConfiguracoesView({ onBloquear }) {
 
   const abrirModalEditarOperador = (op) => {
     setOperadorEditando(op);
+    carregarListaCargos(false);
+    carregarListaSugestoesObs(false);
     setFormOperador({
       nome: op.nome || '',
       matricula: op.matricula || '',
-      cargo: op.cargo || 'Operador CCO',
+      cargo: op.cargo || (cargosOperadoresAtivos[0] || 'Op. Central de Segurança'),
       turno: op.turno || turnosDisponiveisOperador[0] || '12x36 Diurno',
       status: op.status || 'Ativo',
       observacoes: op.observacoes || ''
@@ -611,7 +754,7 @@ export default function ConfiguracoesView({ onBloquear }) {
 
   const vigilantesFiltrados = useMemo(() => {
     const lista = Array.isArray(vigilantes) ? vigilantes : [];
-    return lista.filter(v => {
+    const filtrados = lista.filter(v => {
       if (!v) return false;
       const matchBusca =
         (v.nome || '').toLowerCase().includes(buscaVigilantes.toLowerCase()) ||
@@ -628,21 +771,28 @@ export default function ConfiguracoesView({ onBloquear }) {
 
       return matchBusca && matchStatus && matchPosto;
     });
-  }, [vigilantes, buscaVigilantes, filtroStatusVigilante, filtroPostoVigilante]);
+
+    return [...filtrados].sort((a, b) => compararValores(a, b, sortVigilantes.field, sortVigilantes.order));
+  }, [vigilantes, buscaVigilantes, filtroStatusVigilante, filtroPostoVigilante, sortVigilantes]);
 
   const postosDisponiveisVigilantes = useMemo(() => {
     const lista = Array.isArray(vigilantes) ? vigilantes : [];
     const postos = lista.map(v => v.posto || v.cargo).filter(Boolean);
-    return Array.from(new Set(['Portaria 1 - Principal', 'Portaria 2 - Cargas & Serviços', 'Ronda Operacional', ...postos]));
+    return Array.from(new Set(['Portaria 1', 'Portaria 2', 'Caldeira', 'Cobertura', ...postos]));
   }, [vigilantes]);
 
   const abrirModalNovoVigilante = () => {
     setVigilanteEditando(null);
+    carregarListaCargos(false);
+    carregarListaSugestoesObs(false);
+    const cargoPadrao = (cargosVigilantesAtivos && cargosVigilantesAtivos.length > 0)
+      ? cargosVigilantesAtivos[0]
+      : 'Vigilante Portaria 1';
     setFormVigilante({
       nome: '',
       matricula: `VIG-${Math.floor(1000 + Math.random() * 9000)}`,
-      posto: 'Portaria 1 - Principal',
-      cargo: 'Vigilante Portaria 1',
+      posto: 'Portaria 1',
+      cargo: cargoPadrao,
       turno: turnosDisponiveisOperador[0] || '12x36 Diurno',
       status: 'Ativo',
       observacoes: ''
@@ -653,11 +803,13 @@ export default function ConfiguracoesView({ onBloquear }) {
 
   const abrirModalEditarVigilante = (v) => {
     setVigilanteEditando(v);
+    carregarListaCargos(false);
+    carregarListaSugestoesObs(false);
     setFormVigilante({
       nome: v.nome || '',
       matricula: v.matricula || '',
-      posto: v.posto || 'Portaria 1 - Principal',
-      cargo: v.cargo || 'Vigilante Portaria 1',
+      posto: v.posto || 'Portaria 1',
+      cargo: v.cargo || (cargosVigilantesAtivos[0] || 'Vigilante Portaria 1'),
       turno: v.turno || turnosDisponiveisOperador[0] || '12x36 Diurno',
       status: v.status || 'Ativo',
       observacoes: v.observacoes || ''
@@ -761,7 +913,7 @@ export default function ConfiguracoesView({ onBloquear }) {
 
   const turnosFiltrados = useMemo(() => {
     const lista = Array.isArray(turnos) ? turnos : [];
-    return lista.filter(t => {
+    const filtrados = lista.filter(t => {
       if (!t) return false;
       const matchBusca =
         (t.nome || '').toLowerCase().includes(buscaTurnos.toLowerCase()) ||
@@ -772,7 +924,9 @@ export default function ConfiguracoesView({ onBloquear }) {
 
       return matchBusca && matchStatus;
     });
-  }, [turnos, buscaTurnos, filtroStatusTurno]);
+
+    return [...filtrados].sort((a, b) => compararValores(a, b, sortTurnos.field, sortTurnos.order));
+  }, [turnos, buscaTurnos, filtroStatusTurno, sortTurnos]);
 
   const abrirModalNovoTurno = () => {
     setTurnoEditando(null);
@@ -866,7 +1020,7 @@ export default function ConfiguracoesView({ onBloquear }) {
 
   const observacoesFiltradas = useMemo(() => {
     const lista = Array.isArray(observacoes) ? observacoes : [];
-    return lista.filter(o => {
+    const filtrados = lista.filter(o => {
       if (!o) return false;
       const matchBusca =
         (o.nome || '').toLowerCase().includes(buscaObs.toLowerCase()) ||
@@ -877,7 +1031,9 @@ export default function ConfiguracoesView({ onBloquear }) {
 
       return matchBusca && matchStatus;
     });
-  }, [observacoes, buscaObs, filtroStatusObs]);
+
+    return [...filtrados].sort((a, b) => compararValores(a, b, sortObs.field, sortObs.order));
+  }, [observacoes, buscaObs, filtroStatusObs, sortObs]);
 
   const abrirModalNovaObs = () => {
     setObsEditando(null);
@@ -954,6 +1110,383 @@ export default function ConfiguracoesView({ onBloquear }) {
         await carregarListaObservacoes(false);
       } catch (err) {
         showToast('Erro ao restaurar observações: ' + err.message, 'error');
+      }
+    }
+  };
+
+  // =========================================================================
+  // MÉTODOS E CARREGAMENTO DE CARGOS & SUGESTÕES DE OBSERVAÇÃO
+  // =========================================================================
+  const carregarListaCargos = async (comLoading = true) => {
+    if (comLoading) setLoadingCargos(true);
+    try {
+      const dados = await carregarCargos();
+      setCargos(Array.isArray(dados) ? dados : []);
+    } catch (err) {
+      console.error('Erro ao carregar cargos:', err);
+    } finally {
+      if (comLoading) setLoadingCargos(false);
+    }
+  };
+
+  const carregarListaSugestoesObs = async (comLoading = true) => {
+    if (comLoading) setLoadingSugestoes(true);
+    try {
+      const dados = await carregarSugestoesObservacoes();
+      setSugestoesObs(Array.isArray(dados) ? dados : []);
+    } catch (err) {
+      console.error('Erro ao carregar sugestões de observação:', err);
+    } finally {
+      if (comLoading) setLoadingSugestoes(false);
+    }
+  };
+
+  const cargosOperadoresAtivos = useMemo(() => {
+    const lista = Array.isArray(cargos) ? cargos : [];
+    const ativos = lista.filter(c => c && c.status === 'Ativo' && (c.tipo === 'OPERADOR' || c.tipo === 'AMBOS' || !c.tipo)).map(c => c.nome);
+    return ativos.length > 0 ? ativos : ['Op. Central de Segurança', 'Operador CCO', 'Operador CCO Líder', 'Supervisor CCO', 'Administrador / Gestor CCO'];
+  }, [cargos]);
+
+  const cargosVigilantesAtivos = useMemo(() => {
+    const lista = Array.isArray(cargos) ? cargos : [];
+    const ativos = lista.filter(c => c && c.status === 'Ativo' && (c.tipo === 'VIGILANTE' || c.tipo === 'AMBOS' || !c.tipo)).map(c => c.nome);
+    return ativos.length > 0 ? ativos : ['Vigilante Portaria 1', 'Vigilante Portaria 2', 'Vigilante Caldeira', 'Vigilante CFTV Campo', 'Inspetor de Segurança de Campo'];
+  }, [cargos]);
+
+  const cargosFiltrados = useMemo(() => {
+    const lista = Array.isArray(cargos) ? cargos : [];
+    const filtrados = lista.filter(c => {
+      if (!c) return false;
+      const matchBusca = (c.nome || '').toLowerCase().includes(buscaCargo.toLowerCase());
+      const matchTipo = filtroTipoCargo === 'TODOS' || c.tipo === filtroTipoCargo;
+      const matchStatus = filtroStatusCargo === 'TODOS' || c.status === filtroStatusCargo;
+      return matchBusca && matchTipo && matchStatus;
+    });
+
+    return [...filtrados].sort((a, b) => compararValores(a, b, sortCargos.field, sortCargos.order));
+  }, [cargos, buscaCargo, filtroTipoCargo, filtroStatusCargo, sortCargos]);
+
+  const abrirModalNovoCargo = () => {
+    setCargoEditando(null);
+    setFormCargo({
+      nome: '',
+      tipo: 'OPERADOR',
+      status: 'Ativo'
+    });
+    setErroFormCargo('');
+    setModalCargoAberto(true);
+  };
+
+  const abrirModalEditarCargo = (cargo) => {
+    setCargoEditando(cargo);
+    setFormCargo({
+      nome: cargo.nome || '',
+      tipo: cargo.tipo || 'OPERADOR',
+      status: cargo.status || 'Ativo'
+    });
+    setErroFormCargo('');
+    setModalCargoAberto(true);
+  };
+
+  const handleSalvarCargo = async (e) => {
+    e.preventDefault();
+    if (!formCargo.nome.trim()) {
+      setErroFormCargo('Por favor, informe o nome do cargo ou função.');
+      return;
+    }
+    try {
+      if (cargoEditando) {
+        await editarCargo(cargoEditando.id, formCargo);
+        showToast(`Cargo "${formCargo.nome}" atualizado com sucesso!`);
+      } else {
+        await adicionarCargo(formCargo);
+        showToast(`Cargo "${formCargo.nome}" cadastrado com sucesso!`);
+      }
+      setModalCargoAberto(false);
+      await carregarListaCargos(false);
+    } catch (err) {
+      setErroFormCargo(err.message || 'Erro ao salvar cargo.');
+    }
+  };
+
+  const handleAlternarStatusCargo = async (id, nomeAtual, statusAtual) => {
+    try {
+      await alternarStatusCargo(id);
+      const novoStatus = statusAtual === 'Ativo' ? 'Inativo' : 'Ativo';
+      showToast(`Status do cargo "${nomeAtual}" alterado para ${novoStatus}.`);
+      await carregarListaCargos(false);
+    } catch (err) {
+      showToast('Erro ao alterar status do cargo: ' + err.message, 'error');
+    }
+  };
+
+  const handleConfirmarExclusaoCargo = async () => {
+    if (!cargoExcluindo) return;
+    try {
+      await excluirCargo(cargoExcluindo.id);
+      showToast(`Cargo "${cargoExcluindo.nome}" excluído com sucesso.`);
+      setCargoExcluindo(null);
+      await carregarListaCargos(false);
+    } catch (err) {
+      showToast('Erro ao excluir cargo: ' + err.message, 'error');
+    }
+  };
+
+  const handleRestaurarCargosPadrao = async () => {
+    if (window.confirm('Deseja restaurar os cargos e funções padrão para Operadores e Vigilantes?')) {
+      try {
+        await restaurarCargosPadrao();
+        showToast('Cargos padrão restaurados com sucesso!');
+        await carregarListaCargos(false);
+      } catch (err) {
+        showToast('Erro ao restaurar cargos: ' + err.message, 'error');
+      }
+    }
+  };
+
+  const sugestoesOperadoresAtivas = useMemo(() => {
+    const lista = Array.isArray(sugestoesObs) ? sugestoesObs : [];
+    const ativas = lista.filter(s => s && s.status === 'Ativo' && (s.tipo === 'OPERADOR' || s.tipo === 'AMBOS' || !s.tipo)).map(s => s.texto);
+    if (ativas.length > 0) return ativas;
+    return SUGESTOES_OBS_PADRAO.filter(s => s.tipo === 'OPERADOR' || s.tipo === 'AMBOS').map(s => s.texto);
+  }, [sugestoesObs]);
+
+  const sugestoesVigilantesAtivas = useMemo(() => {
+    const lista = Array.isArray(sugestoesObs) ? sugestoesObs : [];
+    const ativas = lista.filter(s => s && s.status === 'Ativo' && (s.tipo === 'VIGILANTE' || s.tipo === 'AMBOS' || !s.tipo)).map(s => s.texto);
+    if (ativas.length > 0) return ativas;
+    return SUGESTOES_OBS_PADRAO.filter(s => s.tipo === 'VIGILANTE' || s.tipo === 'AMBOS').map(s => s.texto);
+  }, [sugestoesObs]);
+
+  const sugestoesFiltradas = useMemo(() => {
+    const lista = Array.isArray(sugestoesObs) ? sugestoesObs : [];
+    const filtrados = lista.filter(s => {
+      if (!s) return false;
+      const matchBusca = (s.texto || '').toLowerCase().includes(buscaSugestao.toLowerCase());
+      const matchTipo = filtroTipoSugestao === 'TODOS' || s.tipo === filtroTipoSugestao;
+      const matchStatus = filtroStatusSugestao === 'TODOS' || s.status === filtroStatusSugestao;
+      return matchBusca && matchTipo && matchStatus;
+    });
+
+    return [...filtrados].sort((a, b) => compararValores(a, b, sortSugestoes.field, sortSugestoes.order));
+  }, [sugestoesObs, buscaSugestao, filtroTipoSugestao, filtroStatusSugestao, sortSugestoes]);
+
+  const abrirModalNovaSugestao = () => {
+    setSugestaoEditando(null);
+    setFormSugestao({
+      texto: '',
+      tipo: 'OPERADOR',
+      status: 'Ativo'
+    });
+    setErroFormSugestao('');
+    setModalSugestaoAberto(true);
+  };
+
+  const abrirModalEditarSugestao = (sug) => {
+    setSugestaoEditando(sug);
+    setFormSugestao({
+      texto: sug.texto || '',
+      tipo: sug.tipo || 'OPERADOR',
+      status: sug.status || 'Ativo'
+    });
+    setErroFormSugestao('');
+    setModalSugestaoAberto(true);
+  };
+
+  const handleSalvarSugestao = async (e) => {
+    e.preventDefault();
+    if (!formSugestao.texto.trim()) {
+      setErroFormSugestao('Por favor, informe o texto da sugestão de observação.');
+      return;
+    }
+    try {
+      if (sugestaoEditando) {
+        await editarSugestaoObservacao(sugestaoEditando.id, formSugestao);
+        showToast(`Sugestão atualizada com sucesso!`);
+      } else {
+        await adicionarSugestaoObservacao(formSugestao);
+        showToast(`Sugestão cadastrada com sucesso!`);
+      }
+      setModalSugestaoAberto(false);
+      await carregarListaSugestoesObs(false);
+    } catch (err) {
+      setErroFormSugestao(err.message || 'Erro ao salvar sugestão.');
+    }
+  };
+
+  const handleAlternarStatusSugestao = async (id, statusAtual) => {
+    try {
+      await alternarStatusSugestaoObservacao(id);
+      const novoStatus = statusAtual === 'Ativo' ? 'Inativo' : 'Ativo';
+      showToast(`Status da sugestão alterado para ${novoStatus}.`);
+      await carregarListaSugestoesObs(false);
+    } catch (err) {
+      showToast('Erro ao alterar status da sugestão: ' + err.message, 'error');
+    }
+  };
+
+  const handleConfirmarExclusaoSugestao = async () => {
+    if (!sugestaoExcluindo) return;
+    try {
+      await excluirSugestaoObservacao(sugestaoExcluindo.id);
+      showToast(`Sugestão excluída com sucesso.`);
+      setSugestaoExcluindo(null);
+      await carregarListaSugestoesObs(false);
+    } catch (err) {
+      showToast('Erro ao excluir sugestão: ' + err.message, 'error');
+    }
+  };
+
+  const handleRestaurarSugestoesPadrao = async () => {
+    if (window.confirm('Deseja restaurar as sugestões de observação padrão para Operadores e Vigilantes?')) {
+      try {
+        await restaurarSugestoesObservacoesPadrao();
+        showToast('Sugestões de observação padrão restauradas com sucesso!');
+        await carregarListaSugestoesObs(false);
+      } catch (err) {
+        showToast('Erro ao restaurar sugestões: ' + err.message, 'error');
+      }
+    }
+  };
+
+  // =========================================================================
+  // MÉTODOS TAXONOMIA: PRÉDIOS E ÁREAS DE OCORRÊNCIA
+  // =========================================================================
+  const carregarListaTaxonomia = async (comLoading = true) => {
+    if (comLoading) setLoadingTaxonomia(true);
+    try {
+      const dados = await carregarTaxonomia();
+      setTaxonomia(Array.isArray(dados) ? dados : []);
+    } catch (err) {
+      console.error('Erro ao carregar taxonomia de prédios e áreas:', err);
+      showToast('Erro ao carregar lista de prédios e áreas.', 'error');
+    } finally {
+      if (comLoading) setLoadingTaxonomia(false);
+    }
+  };
+
+  const handleSortTaxonomia = (field) => {
+    setSortTaxonomia(prev => ({
+      field,
+      order: prev.field === field && prev.order === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const statsTaxonomia = useMemo(() => {
+    const lista = Array.isArray(taxonomia) ? taxonomia : [];
+    const total = lista.length;
+    const prediosUnicos = new Set(lista.map(i => i.predio).filter(Boolean)).size;
+    const ativas = lista.filter(i => i && i.status === 'Ativo').length;
+    const inativas = total - ativas;
+    return { total, prediosUnicos, ativas, inativas };
+  }, [taxonomia]);
+
+  const prediosDisponiveisTaxonomia = useMemo(() => {
+    const lista = Array.isArray(taxonomia) ? taxonomia : [];
+    const predios = lista.map(i => i.predio).filter(Boolean);
+    return Array.from(new Set(predios)).sort();
+  }, [taxonomia]);
+
+  const taxonomiaFiltrada = useMemo(() => {
+    const lista = Array.isArray(taxonomia) ? taxonomia : [];
+    const termo = buscaTaxonomia.toLowerCase().trim();
+
+    const filtrados = lista.filter(item => {
+      if (!item) return false;
+      const matchBusca = !termo ||
+        (item.predio || '').toLowerCase().includes(termo) ||
+        (item.area || '').toLowerCase().includes(termo);
+
+      const matchPredio = filtroPredioTaxonomia === 'TODOS' || item.predio === filtroPredioTaxonomia;
+      const matchStatus = filtroStatusTaxonomia === 'TODOS' || item.status === filtroStatusTaxonomia;
+
+      return matchBusca && matchPredio && matchStatus;
+    });
+
+    return [...filtrados].sort((a, b) => compararValores(a, b, sortTaxonomia.field, sortTaxonomia.order));
+  }, [taxonomia, buscaTaxonomia, filtroPredioTaxonomia, filtroStatusTaxonomia, sortTaxonomia]);
+
+  const abrirModalNovoTaxonomia = () => {
+    setItemTaxonomiaEditando(null);
+    setModoNovoPredio(false);
+    setFormTaxonomia({
+      predio: prediosDisponiveisTaxonomia[0] || 'RESTAURANTE (SODEXO)',
+      area: '',
+      status: 'Ativo'
+    });
+    setErroFormTaxonomia('');
+    setModalTaxonomiaAberto(true);
+  };
+
+  const abrirModalEditarTaxonomia = (item) => {
+    setItemTaxonomiaEditando(item);
+    setModoNovoPredio(false);
+    setFormTaxonomia({
+      predio: item.predio || '',
+      area: item.area || '',
+      status: item.status || 'Ativo'
+    });
+    setErroFormTaxonomia('');
+    setModalTaxonomiaAberto(true);
+  };
+
+  const handleSalvarTaxonomia = async (e) => {
+    e.preventDefault();
+    setErroFormTaxonomia('');
+    if (!formTaxonomia.predio || !formTaxonomia.predio.trim()) {
+      setErroFormTaxonomia('Por favor, informe ou selecione o Prédio.');
+      return;
+    }
+    if (!formTaxonomia.area || !formTaxonomia.area.trim()) {
+      setErroFormTaxonomia('Por favor, informe o nome da Área / Setor.');
+      return;
+    }
+
+    try {
+      if (itemTaxonomiaEditando) {
+        await editarPredioArea(itemTaxonomiaEditando.id, formTaxonomia);
+        showToast(`Área "${formTaxonomia.area.toUpperCase()}" atualizada com sucesso!`);
+      } else {
+        await adicionarPredioArea(formTaxonomia);
+        showToast(`Área "${formTaxonomia.area.toUpperCase()}" cadastrada com sucesso!`);
+      }
+      setModalTaxonomiaAberto(false);
+      await carregarListaTaxonomia(false);
+    } catch (err) {
+      setErroFormTaxonomia(err.message || 'Erro ao salvar área/prédio.');
+    }
+  };
+
+  const handleAlternarStatusTaxonomia = async (id, statusAtual) => {
+    try {
+      const novoStatus = await alternarStatusPredioArea(id);
+      showToast(`Status alterado para ${novoStatus}.`);
+      await carregarListaTaxonomia(false);
+    } catch (err) {
+      showToast('Erro ao alterar status: ' + err.message, 'error');
+    }
+  };
+
+  const handleConfirmarExclusaoTaxonomia = async () => {
+    if (!itemTaxonomiaExcluindo) return;
+    try {
+      await excluirPredioArea(itemTaxonomiaExcluindo.id);
+      showToast(`Área "${itemTaxonomiaExcluindo.area}" excluída com sucesso.`);
+      setItemTaxonomiaExcluindo(null);
+      await carregarListaTaxonomia(false);
+    } catch (err) {
+      showToast('Erro ao excluir: ' + err.message, 'error');
+    }
+  };
+
+  const handleRestaurarTaxonomiaPadrao = async () => {
+    if (window.confirm('Deseja restaurar a matriz oficial de Prédios e Áreas de Ocorrência para o padrão de fábrica?')) {
+      try {
+        await restaurarTaxonomiaPadrao();
+        showToast('Prédios e áreas restaurados para o padrão de fábrica!');
+        await carregarListaTaxonomia(false);
+      } catch (err) {
+        showToast('Erro ao restaurar: ' + err.message, 'error');
       }
     }
   };
@@ -1291,13 +1824,13 @@ export default function ConfiguracoesView({ onBloquear }) {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-950/90 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Nome do Operador</th>
-                    <th className="py-3 px-4">Matrícula</th>
-                    <th className="py-3 px-4">Cargo / Função CCO</th>
-                    <th className="py-3 px-4">Turno</th>
-                    <th className="py-3 px-4">Observações</th>
-                    <th className="py-3 px-4 text-center">Ações</th>
+                    <SortableHeader as="th" field="status" label="Status" currentField={sortOperadores.field} currentOrder={sortOperadores.order} onSort={handleSortOperadores} activeColor="text-blue-400" className="py-3 px-4 w-28" />
+                    <SortableHeader as="th" field="nome" label="Nome do Operador" currentField={sortOperadores.field} currentOrder={sortOperadores.order} onSort={handleSortOperadores} activeColor="text-blue-400" className="py-3 px-4" />
+                    <SortableHeader as="th" field="matricula" label="Matrícula" currentField={sortOperadores.field} currentOrder={sortOperadores.order} onSort={handleSortOperadores} activeColor="text-blue-400" className="py-3 px-4 w-32" />
+                    <SortableHeader as="th" field="cargo" label="Cargo / Função CCO" currentField={sortOperadores.field} currentOrder={sortOperadores.order} onSort={handleSortOperadores} activeColor="text-blue-400" className="py-3 px-4" />
+                    <SortableHeader as="th" field="turno" label="Turno" currentField={sortOperadores.field} currentOrder={sortOperadores.order} onSort={handleSortOperadores} activeColor="text-blue-400" className="py-3 px-4 w-36" />
+                    <SortableHeader as="th" field="observacoes" label="Observações" currentField={sortOperadores.field} currentOrder={sortOperadores.order} onSort={handleSortOperadores} activeColor="text-blue-400" className="py-3 px-4" />
+                    <th className="py-3 px-4 text-center w-24">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80 bg-slate-900/60">
@@ -1518,14 +2051,14 @@ export default function ConfiguracoesView({ onBloquear }) {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-950/90 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Nome do Vigilante</th>
-                    <th className="py-3 px-4">Matrícula</th>
-                    <th className="py-3 px-4">Posto Físico</th>
-                    <th className="py-3 px-4">Função</th>
-                    <th className="py-3 px-4">Turno</th>
-                    <th className="py-3 px-4">Observações</th>
-                    <th className="py-3 px-4 text-center">Ações</th>
+                    <SortableHeader as="th" field="status" label="Status" currentField={sortVigilantes.field} currentOrder={sortVigilantes.order} onSort={handleSortVigilantes} activeColor="text-cyan-400" className="py-3 px-4 w-28" />
+                    <SortableHeader as="th" field="nome" label="Nome do Vigilante" currentField={sortVigilantes.field} currentOrder={sortVigilantes.order} onSort={handleSortVigilantes} activeColor="text-cyan-400" className="py-3 px-4" />
+                    <SortableHeader as="th" field="matricula" label="Matrícula" currentField={sortVigilantes.field} currentOrder={sortVigilantes.order} onSort={handleSortVigilantes} activeColor="text-cyan-400" className="py-3 px-4 w-32" />
+                    <SortableHeader as="th" field="posto" label="Posto Físico" currentField={sortVigilantes.field} currentOrder={sortVigilantes.order} onSort={handleSortVigilantes} activeColor="text-cyan-400" className="py-3 px-4" />
+                    <SortableHeader as="th" field="cargo" label="Função" currentField={sortVigilantes.field} currentOrder={sortVigilantes.order} onSort={handleSortVigilantes} activeColor="text-cyan-400" className="py-3 px-4" />
+                    <SortableHeader as="th" field="turno" label="Turno" currentField={sortVigilantes.field} currentOrder={sortVigilantes.order} onSort={handleSortVigilantes} activeColor="text-cyan-400" className="py-3 px-4 w-36" />
+                    <SortableHeader as="th" field="observacoes" label="Observações" currentField={sortVigilantes.field} currentOrder={sortVigilantes.order} onSort={handleSortVigilantes} activeColor="text-cyan-400" className="py-3 px-4" />
+                    <th className="py-3 px-4 text-center w-24">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80 bg-slate-900/60">
@@ -1718,11 +2251,11 @@ export default function ConfiguracoesView({ onBloquear }) {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-950/90 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Identificador do Turno</th>
-                    <th className="py-3 px-4">Descrição da Escala / Horário</th>
-                    <th className="py-3 px-4">Data Cadastro</th>
-                    <th className="py-3 px-4 text-center">Ações</th>
+                    <SortableHeader as="th" field="status" label="Status" currentField={sortTurnos.field} currentOrder={sortTurnos.order} onSort={handleSortTurnos} activeColor="text-indigo-400" className="py-3 px-4 w-28" />
+                    <SortableHeader as="th" field="nome" label="Identificador do Turno" currentField={sortTurnos.field} currentOrder={sortTurnos.order} onSort={handleSortTurnos} activeColor="text-indigo-400" className="py-3 px-4" />
+                    <SortableHeader as="th" field="descricao" label="Descrição da Escala / Horário" currentField={sortTurnos.field} currentOrder={sortTurnos.order} onSort={handleSortTurnos} activeColor="text-indigo-400" className="py-3 px-4" />
+                    <SortableHeader as="th" field="dataCadastro" label="Data Cadastro" currentField={sortTurnos.field} currentOrder={sortTurnos.order} onSort={handleSortTurnos} activeColor="text-indigo-400" className="py-3 px-4 w-32" />
+                    <th className="py-3 px-4 text-center w-24">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80 bg-slate-900/60">
@@ -1902,11 +2435,11 @@ export default function ConfiguracoesView({ onBloquear }) {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-950/90 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Texto / Rótulo da Observação</th>
-                    <th className="py-3 px-4">Descrição / Aplicação Operacional</th>
-                    <th className="py-3 px-4">Data Cadastro</th>
-                    <th className="py-3 px-4 text-center">Ações</th>
+                    <SortableHeader as="th" field="status" label="Status" currentField={sortObs.field} currentOrder={sortObs.order} onSort={handleSortObs} activeColor="text-amber-400" className="py-3 px-4 w-28" />
+                    <SortableHeader as="th" field="nome" label="Texto / Rótulo da Observação" currentField={sortObs.field} currentOrder={sortObs.order} onSort={handleSortObs} activeColor="text-amber-400" className="py-3 px-4" />
+                    <SortableHeader as="th" field="descricao" label="Descrição / Aplicação Operacional" currentField={sortObs.field} currentOrder={sortObs.order} onSort={handleSortObs} activeColor="text-amber-400" className="py-3 px-4" />
+                    <SortableHeader as="th" field="dataCadastro" label="Data Cadastro" currentField={sortObs.field} currentOrder={sortObs.order} onSort={handleSortObs} activeColor="text-amber-400" className="py-3 px-4 w-32" />
+                    <th className="py-3 px-4 text-center w-24">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80 bg-slate-900/60">
@@ -1974,6 +2507,485 @@ export default function ConfiguracoesView({ onBloquear }) {
               </table>
             </div>
           </div>
+
+          {/* ========================================================= */}
+          {/* SEÇÃO 2: CARGOS CADASTRADOS (OPERADORES & VIGILANTES)     */}
+          {/* ========================================================= */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-4 p-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  <Briefcase className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>Cargos e Funções Cadastradas</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                      {cargosFiltrados.length}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Alimenta automaticamente a lista de sugestões nos cadastros de Operadores da Central e Vigilantes de Posto.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap justify-end">
+                <div className="relative w-48 sm:w-56">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={buscaCargo}
+                    onChange={(e) => setBuscaCargo(e.target.value)}
+                    placeholder="Buscar cargo..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                <select
+                  value={filtroTipoCargo}
+                  onChange={(e) => setFiltroTipoCargo(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="TODOS">Todos Destinos</option>
+                  <option value="OPERADOR">Operadores CCO</option>
+                  <option value="VIGILANTE">Vigilantes de Posto</option>
+                </select>
+
+                <select
+                  value={filtroStatusCargo}
+                  onChange={(e) => setFiltroStatusCargo(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="TODOS">Todos Status</option>
+                  <option value="Ativo">Apenas Ativos</option>
+                  <option value="Inativo">Apenas Inativos</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleRestaurarCargosPadrao}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+                  title="Restaurar lista padrão de cargos"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Restaurar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={abrirModalNovoCargo}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/30 transition-all cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Novo Cargo</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border border-slate-800 rounded-xl">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-950/90 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                    <SortableHeader as="th" field="status" label="Status" currentField={sortCargos.field} currentOrder={sortCargos.order} onSort={handleSortCargos} activeColor="text-blue-400" className="py-2.5 px-4 w-28" />
+                    <SortableHeader as="th" field="nome" label="Nome do Cargo / Função" currentField={sortCargos.field} currentOrder={sortCargos.order} onSort={handleSortCargos} activeColor="text-blue-400" className="py-2.5 px-4" />
+                    <SortableHeader as="th" field="tipo" label="Categoria / Destino" currentField={sortCargos.field} currentOrder={sortCargos.order} onSort={handleSortCargos} activeColor="text-blue-400" className="py-2.5 px-4 w-44" />
+                    <SortableHeader as="th" field="dataCadastro" label="Data Cadastro" currentField={sortCargos.field} currentOrder={sortCargos.order} onSort={handleSortCargos} activeColor="text-blue-400" className="py-2.5 px-4 w-32" />
+                    <th className="py-2.5 px-4 text-center w-24">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80 bg-slate-900/40">
+                  {cargosFiltrados.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-500">
+                        Nenhum cargo encontrado com os filtros aplicados.
+                      </td>
+                    </tr>
+                  ) : (
+                    cargosFiltrados.map((c) => {
+                      const isAtivo = c.status === 'Ativo';
+                      const isOperador = c.tipo === 'OPERADOR';
+                      return (
+                        <tr key={c.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="py-2.5 px-4">
+                            <button
+                              type="button"
+                              onClick={() => handleAlternarStatusCargo(c.id, c.nome, c.status)}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer ${isAtivo
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+                                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-750'
+                                }`}
+                              title={`Clique para ${isAtivo ? 'desativar' : 'ativar'}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${isAtivo ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+                              <span>{c.status}</span>
+                            </button>
+                          </td>
+                          <td className="py-2.5 px-4 font-bold text-slate-100">
+                            {c.nome}
+                          </td>
+                          <td className="py-2.5 px-4">
+                            {isOperador ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                                <Briefcase className="w-3 h-3 text-blue-400" />
+                                Operador CCO
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                <Shield className="w-3 h-3 text-emerald-400" />
+                                Vigilante de Posto / Ronda
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-4 text-slate-400 font-mono text-[11px]">
+                            {c.dataCadastro || '-'}
+                          </td>
+                          <td className="py-2.5 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => abrirModalEditarCargo(c)}
+                                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 border border-slate-700 transition-colors cursor-pointer"
+                                title="Editar cargo"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCargoExcluindo(c)}
+                                className="p-1 rounded-lg bg-slate-800 hover:bg-red-950/70 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-800/60 transition-colors cursor-pointer"
+                                title="Excluir cargo"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ========================================================= */}
+          {/* SEÇÃO 3: SUGESTÕES RÁPIDAS DE OBSERVAÇÕES & PERFIS        */}
+          {/* ========================================================= */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-4 p-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>Sugestões Rápidas de Observações & Perfis</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      {sugestoesFiltradas.length}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Frases pré-definidas exibidas como botões rápidos nos formulários de Operadores e Vigilantes para reduzir o tempo de digitação.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap justify-end">
+                <div className="relative w-48 sm:w-56">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={buscaSugestao}
+                    onChange={(e) => setBuscaSugestao(e.target.value)}
+                    placeholder="Buscar texto..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                <select
+                  value={filtroTipoSugestao}
+                  onChange={(e) => setFiltroTipoSugestao(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                >
+                  <option value="TODOS">Todos Destinos</option>
+                  <option value="OPERADOR">Operadores CCO</option>
+                  <option value="VIGILANTE">Vigilantes de Posto</option>
+                </select>
+
+                <select
+                  value={filtroStatusSugestao}
+                  onChange={(e) => setFiltroStatusSugestao(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                >
+                  <option value="TODOS">Todos Status</option>
+                  <option value="Ativo">Apenas Ativos</option>
+                  <option value="Inativo">Apenas Inativos</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleRestaurarSugestoesPadrao}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+                  title="Restaurar lista padrão de sugestões"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Restaurar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={abrirModalNovaSugestao}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-600/30 transition-all cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Nova Sugestão</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border border-slate-800 rounded-xl">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-950/90 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                    <SortableHeader as="th" field="status" label="Status" currentField={sortSugestoes.field} currentOrder={sortSugestoes.order} onSort={handleSortSugestoes} activeColor="text-purple-400" className="py-2.5 px-4 w-28" />
+                    <SortableHeader as="th" field="texto" label="Texto da Sugestão / Observação" currentField={sortSugestoes.field} currentOrder={sortSugestoes.order} onSort={handleSortSugestoes} activeColor="text-purple-400" className="py-2.5 px-4" />
+                    <SortableHeader as="th" field="tipo" label="Destinado Para" currentField={sortSugestoes.field} currentOrder={sortSugestoes.order} onSort={handleSortSugestoes} activeColor="text-purple-400" className="py-2.5 px-4 w-44" />
+                    <SortableHeader as="th" field="dataCadastro" label="Data Cadastro" currentField={sortSugestoes.field} currentOrder={sortSugestoes.order} onSort={handleSortSugestoes} activeColor="text-purple-400" className="py-2.5 px-4 w-32" />
+                    <th className="py-2.5 px-4 text-center w-24">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80 bg-slate-900/40">
+                  {sugestoesFiltradas.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-500">
+                        Nenhuma sugestão encontrada com os filtros aplicados.
+                      </td>
+                    </tr>
+                  ) : (
+                    sugestoesFiltradas.map((sug) => {
+                      const isAtivo = sug.status === 'Ativo';
+                      const isOperador = sug.tipo === 'OPERADOR';
+                      return (
+                        <tr key={sug.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="py-2.5 px-4">
+                            <button
+                              type="button"
+                              onClick={() => handleAlternarStatusSugestao(sug.id, sug.status)}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer ${isAtivo
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+                                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-750'
+                                }`}
+                              title={`Clique para ${isAtivo ? 'desativar' : 'ativar'}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${isAtivo ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+                              <span>{sug.status}</span>
+                            </button>
+                          </td>
+                          <td className="py-2.5 px-4 text-slate-200 font-medium">
+                            {sug.texto}
+                          </td>
+                          <td className="py-2.5 px-4">
+                            {isOperador ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                                <Sparkles className="w-3 h-3 text-blue-400" />
+                                Operadores CCO
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                <Shield className="w-3 h-3 text-emerald-400" />
+                                Vigilantes de Posto
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-4 text-slate-400 font-mono text-[11px]">
+                            {sug.dataCadastro || '-'}
+                          </td>
+                          <td className="py-2.5 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => abrirModalEditarSugestao(sug)}
+                                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-400 hover:text-purple-300 border border-slate-700 transition-colors cursor-pointer"
+                                title="Editar sugestão"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSugestaoExcluindo(sug)}
+                                className="p-1 rounded-lg bg-slate-800 hover:bg-red-950/70 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-800/60 transition-colors cursor-pointer"
+                                title="Excluir sugestão"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ========================================================= */}
+          {/* SEÇÃO 4: TAXONOMIA DE PRÉDIOS E ÁREAS (OCORRÊNCIAS / RO)  */}
+          {/* ========================================================= */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-4 p-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>Prédios e Áreas / Setores das Ocorrências</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      {taxonomiaFiltrada.length}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Gerencie a lista oficial de Prédios e suas Áreas/Setores específicos para preenchimento de Ocorrências (RO) e Dashboards em tempo real.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap justify-end">
+                <div className="relative w-48 sm:w-56">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={buscaTaxonomia}
+                    onChange={(e) => setBuscaTaxonomia(e.target.value)}
+                    placeholder="Buscar Prédio ou Área..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <select
+                  value={filtroPredioTaxonomia}
+                  onChange={(e) => setFiltroPredioTaxonomia(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer max-w-[180px]"
+                >
+                  <option value="TODOS">Todos os Prédios</option>
+                  {prediosDisponiveisTaxonomia.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={filtroStatusTaxonomia}
+                  onChange={(e) => setFiltroStatusTaxonomia(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="TODOS">Todos Status</option>
+                  <option value="Ativo">Apenas Ativos</option>
+                  <option value="Inativo">Apenas Inativos</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleRestaurarTaxonomiaPadrao}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+                  title="Restaurar lista canônica padrão de Prédios e Áreas"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Restaurar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={abrirModalNovoTaxonomia}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Novo Prédio / Área</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border border-slate-800 rounded-xl">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-950/90 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                    <SortableHeader as="th" field="status" label="Status" currentField={sortTaxonomia.field} currentOrder={sortTaxonomia.order} onSort={handleSortTaxonomia} activeColor="text-indigo-400" className="py-2.5 px-4 w-28" />
+                    <SortableHeader as="th" field="predio" label="Prédio / Instalação" currentField={sortTaxonomia.field} currentOrder={sortTaxonomia.order} onSort={handleSortTaxonomia} activeColor="text-indigo-400" className="py-2.5 px-4 w-64" />
+                    <SortableHeader as="th" field="area" label="Área / Setor Específico" currentField={sortTaxonomia.field} currentOrder={sortTaxonomia.order} onSort={handleSortTaxonomia} activeColor="text-indigo-400" className="py-2.5 px-4" />
+                    <SortableHeader as="th" field="dataCadastro" label="Data Cadastro" currentField={sortTaxonomia.field} currentOrder={sortTaxonomia.order} onSort={handleSortTaxonomia} activeColor="text-indigo-400" className="py-2.5 px-4 w-32" />
+                    <th className="py-2.5 px-4 text-center w-24">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80 bg-slate-900/40">
+                  {taxonomiaFiltrada.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-500">
+                        Nenhum prédio ou área encontrado com os filtros aplicados.
+                      </td>
+                    </tr>
+                  ) : (
+                    taxonomiaFiltrada.map((item) => {
+                      const isAtivo = item.status === 'Ativo';
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="py-2.5 px-4">
+                            <button
+                              type="button"
+                              onClick={() => handleAlternarStatusTaxonomia(item.id, item.status)}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer ${isAtivo
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+                                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-750'
+                                }`}
+                              title={`Clique para ${isAtivo ? 'desativar' : 'ativar'}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${isAtivo ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+                              <span>{item.status}</span>
+                            </button>
+                          </td>
+                          <td className="py-2.5 px-4">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                              <Building2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                              <span className="truncate">{item.predio}</span>
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-slate-200 font-semibold">
+                            <span className="inline-flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span>{item.area}</span>
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-slate-400 font-mono text-[11px]">
+                            {item.dataCadastro || '-'}
+                          </td>
+                          <td className="py-2.5 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => abrirModalEditarTaxonomia(item)}
+                                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-400 hover:text-indigo-300 border border-slate-700 transition-colors cursor-pointer"
+                                title="Editar prédio/área"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setItemTaxonomiaExcluindo(item)}
+                                className="p-1 rounded-lg bg-slate-800 hover:bg-red-950/70 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-800/60 transition-colors cursor-pointer"
+                                title="Excluir prédio/área"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1983,225 +2995,247 @@ export default function ConfiguracoesView({ onBloquear }) {
       {abaAtiva === 'seguranca' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden space-y-5">
-          <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-4 relative z-10">
-            <div className="flex items-center gap-3.5">
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-inner">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-white tracking-tight">
-                    Segurança do Sistema & Controle de Acesso
-                  </h2>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    Proteção Ativa
-                  </span>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-4 relative z-10">
+              <div className="flex items-center gap-3.5">
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-inner">
+                  <ShieldCheck className="w-6 h-6" />
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Defina a Senha Mestra para restringir a entrada a este módulo e proteger o gerenciamento do efetivo, turnos e opções do sistema.
-                </p>
-              </div>
-            </div>
-
-            {onBloquear && (
-              <button
-                type="button"
-                onClick={onBloquear}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-red-950/60 text-slate-300 hover:text-red-300 border border-slate-700 hover:border-red-800/50 text-xs font-semibold transition-all cursor-pointer shadow-sm self-start md:self-auto"
-                title="Encerrar sessão de administrador e bloquear o módulo de configurações imediatamente"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Bloquear Módulo Agora</span>
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10">
-            {/* Formulário de Alteração de Senha Mestra */}
-            <div className="lg:col-span-7 bg-slate-950/60 border border-slate-800 rounded-xl p-5 space-y-4">
-              <div className="flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                  Alterar Senha Mestra
-                </h3>
-              </div>
-
-              {erroSenha && (
-                <div className="p-3 rounded-lg bg-red-950/70 border border-red-800/80 text-xs text-red-200 flex items-start gap-2 animate-in fade-in">
-                  <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                  <span>{erroSenha}</span>
-                </div>
-              )}
-
-              {sucessoSenha && (
-                <div className="p-3 rounded-lg bg-emerald-950/70 border border-emerald-800/80 text-xs text-emerald-200 flex items-start gap-2 animate-in fade-in">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>{sucessoSenha}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleAlterarSenha} className="space-y-3.5 text-xs">
                 <div>
-                  <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider text-[11px]">
-                    Senha Mestra Atual <span className="text-emerald-400">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={mostrarSenhaAtual ? 'text' : 'password'}
-                      value={senhaAtual}
-                      onChange={(e) => {
-                        setSenhaAtual(e.target.value);
-                        if (erroSenha) setErroSenha('');
-                      }}
-                      placeholder="Digite a senha mestra atual..."
-                      disabled={salvandoSenha}
-                      className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 pr-9 text-slate-100 placeholder:text-slate-500 font-mono tracking-wider focus:outline-none disabled:opacity-50"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setMostrarSenhaAtual(!mostrarSenhaAtual)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
-                    >
-                      {mostrarSenhaAtual ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-white tracking-tight">
+                      Segurança do Sistema & Controle de Acesso
+                    </h2>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Proteção Ativa
+                    </span>
                   </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Defina a Senha Mestra para restringir a entrada a este módulo e proteger o gerenciamento do efetivo, turnos e opções do sistema.
+                  </p>
                 </div>
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider text-[11px]">
-                      Nova Senha <span className="text-emerald-400">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={mostrarNovaSenha ? 'text' : 'password'}
-                        value={novaSenha}
-                        onChange={(e) => {
-                          setNovaSenha(e.target.value);
-                          if (erroSenha) setErroSenha('');
-                        }}
-                        placeholder="Mínimo 4 caracteres..."
-                        disabled={salvandoSenha}
-                        className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 pr-9 text-slate-100 placeholder:text-slate-500 font-mono tracking-wider focus:outline-none disabled:opacity-50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setMostrarNovaSenha(!mostrarNovaSenha)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
-                      >
-                        {mostrarNovaSenha ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider text-[11px]">
-                      Confirmar Nova Senha <span className="text-emerald-400">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={mostrarConfirmarSenha ? 'text' : 'password'}
-                        value={confirmarSenha}
-                        onChange={(e) => {
-                          setConfirmarSenha(e.target.value);
-                          if (erroSenha) setErroSenha('');
-                        }}
-                        placeholder="Repita a nova senha..."
-                        disabled={salvandoSenha}
-                        className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 pr-9 text-slate-100 placeholder:text-slate-500 font-mono tracking-wider focus:outline-none disabled:opacity-50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setMostrarConfirmarSenha(!mostrarConfirmarSenha)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
-                      >
-                        {mostrarConfirmarSenha ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2 flex items-center justify-end">
-                  <button
-                    type="submit"
-                    disabled={salvandoSenha || !senhaAtual || !novaSenha || !confirmarSenha}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {salvandoSenha ? (
-                      <>
-                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        <span>Salvando Senha...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-3.5 h-3.5" />
-                        <span>Salvar Nova Senha Mestra</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
+              {onBloquear && (
+                <button
+                  type="button"
+                  onClick={onBloquear}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-red-950/60 text-slate-300 hover:text-red-300 border border-slate-700 hover:border-red-800/50 text-xs font-semibold transition-all cursor-pointer shadow-sm self-start md:self-auto"
+                  title="Encerrar sessão de administrador e bloquear o módulo de configurações imediatamente"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Bloquear Módulo Agora</span>
+                </button>
+              )}
             </div>
 
-            {/* Cartão Informativo de Auditoria */}
-            <div className="lg:col-span-5 bg-slate-950/40 border border-slate-800/80 rounded-xl p-5 flex flex-col justify-between space-y-4">
-              <div className="space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10">
+              {/* Formulário de Alteração de Senha Mestra */}
+              <div className="lg:col-span-7 bg-slate-950/60 border border-slate-800 rounded-xl p-5 space-y-4">
                 <div className="flex items-center gap-2">
-                  <HardDrive className="w-4 h-4 text-emerald-400" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                    Persistência & Diretrizes
+                  <KeyRound className="w-4 h-4 text-emerald-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                    Alterar Senha Mestra
                   </h3>
                 </div>
 
-                <div className="space-y-2.5 text-xs text-slate-400 leading-relaxed">
-                  <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">Armazenamento:</span>
-                      <span className="font-mono text-emerald-400 font-semibold">data/seguranca.json</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">Senha Padrão Inicial:</span>
-                      <span className="font-mono text-amber-300 font-semibold">admin123</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">Última Modificação:</span>
-                      <span className="text-slate-200">
-                        {dataAtualizacaoSenha ? new Date(dataAtualizacaoSenha).toLocaleString('pt-BR') : 'Padrão de fábrica'}
-                      </span>
+                {erroSenha && (
+                  <div className="p-3 rounded-lg bg-red-950/70 border border-red-800/80 text-xs text-red-200 flex items-start gap-2 animate-in fade-in">
+                    <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <span>{erroSenha}</span>
+                  </div>
+                )}
+
+                {sucessoSenha && (
+                  <div className="p-3 rounded-lg bg-emerald-950/70 border border-emerald-800/80 text-xs text-emerald-200 flex items-start gap-2 animate-in fade-in">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>{sucessoSenha}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleAlterarSenha} className="space-y-3.5 text-xs">
+                  <div>
+                    <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider text-[11px]">
+                      Senha Mestra Atual <span className="text-emerald-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={mostrarSenhaAtual ? 'text' : 'password'}
+                        value={senhaAtual}
+                        onChange={(e) => {
+                          setSenhaAtual(e.target.value);
+                          if (erroSenha) setErroSenha('');
+                        }}
+                        placeholder="Digite a senha mestra atual..."
+                        disabled={salvandoSenha}
+                        className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 pr-9 text-slate-100 placeholder:text-slate-500 font-mono tracking-wider focus:outline-none disabled:opacity-50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setMostrarSenhaAtual(!mostrarSenhaAtual)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
+                      >
+                        {mostrarSenhaAtual ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
                     </div>
                   </div>
 
-                  <ul className="space-y-1.5 text-[11px] text-slate-400">
-                    <li className="flex items-start gap-1.5">
-                      <span className="text-emerald-400 font-bold">•</span>
-                      <span>A senha mestra é necessária para qualquer acesso à tela de configurações.</span>
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <span className="text-emerald-400 font-bold">•</span>
-                      <span>Ao recarregar a página ou clicar em "Bloquear Módulo Agora", o acesso será trancado novamente.</span>
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <span className="text-emerald-400 font-bold">•</span>
-                      <span>Todas as alterações são persistidas no disco local de forma permanente.</span>
-                    </li>
-                  </ul>
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider text-[11px]">
+                        Nova Senha <span className="text-emerald-400">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={mostrarNovaSenha ? 'text' : 'password'}
+                          value={novaSenha}
+                          onChange={(e) => {
+                            setNovaSenha(e.target.value);
+                            if (erroSenha) setErroSenha('');
+                          }}
+                          placeholder="Mínimo 4 caracteres..."
+                          disabled={salvandoSenha}
+                          className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 pr-9 text-slate-100 placeholder:text-slate-500 font-mono tracking-wider focus:outline-none disabled:opacity-50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setMostrarNovaSenha(!mostrarNovaSenha)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
+                        >
+                          {mostrarNovaSenha ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider text-[11px]">
+                        Confirmar Nova Senha <span className="text-emerald-400">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={mostrarConfirmarSenha ? 'text' : 'password'}
+                          value={confirmarSenha}
+                          onChange={(e) => {
+                            setConfirmarSenha(e.target.value);
+                            if (erroSenha) setErroSenha('');
+                          }}
+                          placeholder="Repita a nova senha..."
+                          disabled={salvandoSenha}
+                          className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 pr-9 text-slate-100 placeholder:text-slate-500 font-mono tracking-wider focus:outline-none disabled:opacity-50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setMostrarConfirmarSenha(!mostrarConfirmarSenha)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
+                        >
+                          {mostrarConfirmarSenha ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end">
+                    <button
+                      type="submit"
+                      disabled={salvandoSenha || !senhaAtual || !novaSenha || !confirmarSenha}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {salvandoSenha ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          <span>Salvando Senha...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Salvar Nova Senha Mestra</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
               </div>
 
-              <div className="p-2.5 rounded-lg bg-emerald-950/20 border border-emerald-800/30 text-[11px] text-emerald-300 flex items-center gap-2">
-                <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Proteção corporativa ativa padrão CCO Security Suite.</span>
+              {/* Cartão Informativo de Auditoria */}
+              <div className="lg:col-span-5 bg-slate-950/40 border border-slate-800/80 rounded-xl p-5 flex flex-col justify-between space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <HardDrive className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                      Persistência & Diretrizes
+                    </h3>
+                  </div>
+
+                  <div className="space-y-2.5 text-xs text-slate-400 leading-relaxed">
+                    <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Armazenamento:</span>
+                        <span className="font-mono text-emerald-400 font-semibold">data/seguranca.json (Blindado)</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Criptografia Ativa:</span>
+                        <span className="font-mono text-emerald-300 font-semibold">PBKDF2-SHA512 + safeStorage</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Entropia / Salt:</span>
+                        <span className="font-mono text-slate-300">100.000 iterações / Salt 32B</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Última Modificação:</span>
+                        <span className="text-slate-200">
+                          {dataAtualizacaoSenha ? new Date(dataAtualizacaoSenha).toLocaleString('pt-BR') : 'Padrão blindado'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <ul className="space-y-1.5 text-[11px] text-slate-400">
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-400 font-bold">•</span>
+                        <span>As credenciais são gravadas exclusivamente como hash criptográfico irreversível com salt aleatório.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-400 font-bold">•</span>
+                        <span>Nenhuma senha trafega pela rede ou é exposta no navegador em texto plano.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-400 font-bold">•</span>
+                        <span>Ao clicar em "Bloquear Módulo Agora" ou fechar a janela, o acesso restrito é bloqueado imediatamente.</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-emerald-950/20 border border-emerald-800/30 text-[11px] text-emerald-300 flex items-center gap-2">
+                  <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>Proteção corporativa ativa padrão CCO Security Suite.</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* PAINEL DEDICADO DE BACKUP E RESTAURAÇÃO DE DADOS (MERGE INTELIGENTE) */}
-        <PainelBackupRestauracao onToast={showToast} />
-      </div>
+          {/* Card de Acesso Rápido a Backup & Restauração ao final da aba Segurança */}
+          <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                <Database className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-white">Backup e Restauração de Dados</h4>
+                <p className="text-[11px] text-slate-400">Proteja a base consolidada ou restaure cadastros com o algoritmo de Merge Inteligente.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAbaAtiva('backup')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md cursor-pointer shrink-0"
+            >
+              <span>Acessar Painel de Backup</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ========================================================= */}
@@ -2582,22 +3616,22 @@ export default function ConfiguracoesView({ onBloquear }) {
 
                 <div>
                   <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider">
-                    Função / Perfil CCO
+                    Função / Perfil CCO <span className="text-red-400">*</span>
                   </label>
-                  <input
-                    type="text"
-                    list="sugestoes-cargos-operadores-cco"
+                  <select
                     value={formOperador.cargo}
                     onChange={(e) => setFormOperador({ ...formOperador, cargo: e.target.value })}
-                    placeholder="Ex: Operador CCO, Líder CCO..."
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-100 focus:outline-none"
-                  />
-                  <datalist id="sugestoes-cargos-operadores-cco">
-                    <option value="Operador CCO" />
-                    <option value="Operador CCO Líder" />
-                    <option value="Supervisor CCO" />
-                    <option value="Administrador / Gestor CCO" />
-                  </datalist>
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-100 font-semibold focus:outline-none cursor-pointer"
+                    required
+                  >
+                    <option value="">-- Selecione o Cargo / Perfil CCO --</option>
+                    {cargosOperadoresAtivos.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                    {formOperador.cargo && !cargosOperadoresAtivos.includes(formOperador.cargo) && (
+                      <option value={formOperador.cargo}>{formOperador.cargo}</option>
+                    )}
+                  </select>
                 </div>
               </div>
 
@@ -2636,13 +3670,19 @@ export default function ConfiguracoesView({ onBloquear }) {
                 <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider">
                   Observações / Perfil de Acesso
                 </label>
-                <textarea
-                  rows={2}
+                <select
                   value={formOperador.observacoes}
                   onChange={(e) => setFormOperador({ ...formOperador, observacoes: e.target.value })}
-                  placeholder="Ex: Responsável pelo plantão A, emissão de relatórios de auditoria..."
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-100 focus:outline-none resize-none"
-                />
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-100 focus:outline-none cursor-pointer"
+                >
+                  <option value="">-- Selecione uma observação / sugestão --</option>
+                  {sugestoesOperadoresAtivas.map((sug, i) => (
+                    <option key={i} value={sug}>{sug}</option>
+                  ))}
+                  {formOperador.observacoes && !sugestoesOperadoresAtivas.includes(formOperador.observacoes) && (
+                    <option value={formOperador.observacoes}>{formOperador.observacoes}</option>
+                  )}
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
@@ -2807,10 +3847,13 @@ export default function ConfiguracoesView({ onBloquear }) {
                     onChange={(e) => setFormVigilante({ ...formVigilante, posto: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-slate-100 focus:outline-none cursor-pointer"
                   >
-                    <option value="Portaria 1 - Principal">Portaria 1 - Principal</option>
-                    <option value="Portaria 2 - Cargas & Serviços">Portaria 2 - Cargas & Serviços</option>
-                    <option value="Ronda Operacional">Ronda Operacional</option>
-                    <option value="Posto de Cobertura / Apoio">Posto de Cobertura / Apoio</option>
+                    <option value="Portaria 1">Portaria 1</option>
+                    <option value="Portaria 2">Portaria 2</option>
+                    <option value="Caldeira">Caldeira</option>
+                    <option value="Cobertura">Cobertura</option>
+                    {formVigilante.posto && !['Portaria 1', 'Portaria 2', 'Caldeira', 'Cobertura'].includes(formVigilante.posto) && (
+                      <option value={formVigilante.posto}>{formVigilante.posto}</option>
+                    )}
                   </select>
                 </div>
               </div>
@@ -2818,23 +3861,22 @@ export default function ConfiguracoesView({ onBloquear }) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider">
-                    Função / Cargo
+                    Função / Cargo <span className="text-emerald-400">*</span>
                   </label>
-                  <input
-                    type="text"
-                    list="sugestoes-cargos-vigilantes"
+                  <select
                     value={formVigilante.cargo}
                     onChange={(e) => setFormVigilante({ ...formVigilante, cargo: e.target.value })}
-                    placeholder="Ex: Vigilante Portaria 1, Vigilante Ronda..."
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-slate-100 focus:outline-none"
-                  />
-                  <datalist id="sugestoes-cargos-vigilantes">
-                    <option value="Vigilante Portaria 1" />
-                    <option value="Vigilante Portaria 2" />
-                    <option value="Vigilante Ronda" />
-                    <option value="Vigilante CFTV Campo" />
-                    <option value="Inspetor de Segurança de Campo" />
-                  </datalist>
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-slate-100 font-semibold focus:outline-none cursor-pointer"
+                    required
+                  >
+                    <option value="">-- Selecione o Cargo / Posto --</option>
+                    {cargosVigilantesAtivos.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                    {formVigilante.cargo && !cargosVigilantesAtivos.includes(formVigilante.cargo) && (
+                      <option value={formVigilante.cargo}>{formVigilante.cargo}</option>
+                    )}
+                  </select>
                 </div>
 
                 <div>
@@ -2871,13 +3913,19 @@ export default function ConfiguracoesView({ onBloquear }) {
                 <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider">
                   Observações / Rádio HT / Detalhes do Posto
                 </label>
-                <textarea
-                  rows={2}
+                <select
                   value={formVigilante.observacoes}
                   onChange={(e) => setFormVigilante({ ...formVigilante, observacoes: e.target.value })}
-                  placeholder="Ex: Escala 12x36 par, responsável por conferência de lacres, HT canal 02..."
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-slate-100 focus:outline-none resize-none"
-                />
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-slate-100 focus:outline-none cursor-pointer"
+                >
+                  <option value="">-- Selecione uma observação / posto --</option>
+                  {sugestoesVigilantesAtivas.map((sug, i) => (
+                    <option key={i} value={sug}>{sug}</option>
+                  ))}
+                  {formVigilante.observacoes && !sugestoesVigilantesAtivas.includes(formVigilante.observacoes) && (
+                    <option value={formVigilante.observacoes}>{formVigilante.observacoes}</option>
+                  )}
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
@@ -3237,6 +4285,461 @@ export default function ConfiguracoesView({ onBloquear }) {
               <button
                 type="button"
                 onClick={handleConfirmarExclusaoObs}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold shadow-lg shadow-red-600/30 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Sim, Excluir</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 7: ADICIONAR / EDITAR CARGO OU FUNÇÃO               */}
+      {/* ========================================================= */}
+      {modalCargoAberto && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-xl">
+                  <Briefcase className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">
+                    {cargoEditando ? 'Editar Cargo ou Função' : 'Cadastrar Novo Cargo'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    O cargo configurado estará disponível na lista rápida dos cadastros.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalCargoAberto(false)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {erroFormCargo && (
+              <div className="p-3 rounded-lg bg-red-950/60 border border-red-800/80 text-xs text-red-200 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                <span>{erroFormCargo}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSalvarCargo} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider">
+                  Nome do Cargo / Função <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formCargo.nome}
+                  onChange={(e) => setFormCargo({ ...formCargo, nome: e.target.value })}
+                  placeholder="Ex: Operador CCO, Vigilante Portaria 1, Fiscal de Pátio..."
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-100 font-semibold focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider">
+                    Destinado a
+                  </label>
+                  <select
+                    value={formCargo.tipo}
+                    onChange={(e) => setFormCargo({ ...formCargo, tipo: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-100 focus:outline-none cursor-pointer"
+                  >
+                    <option value="OPERADOR">Operadores CCO (Central)</option>
+                    <option value="VIGILANTE">Vigilantes de Posto (Campo)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider">
+                    Status
+                  </label>
+                  <select
+                    value={formCargo.status}
+                    onChange={(e) => setFormCargo({ ...formCargo, status: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-100 focus:outline-none cursor-pointer"
+                  >
+                    <option value="Ativo">Ativo (Visível nas Sugestões)</option>
+                    <option value="Inativo">Inativo (Oculto)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setModalCargoAberto(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-lg shadow-blue-600/30 flex items-center gap-2 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{cargoEditando ? 'Salvar Alterações' : 'Cadastrar Cargo'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 8: CONFIRMAÇÃO DE EXCLUSÃO DE CARGO                 */}
+      {/* ========================================================= */}
+      {cargoExcluindo && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-red-600/20 text-red-400 border border-red-500/30 rounded-xl">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-white">Excluir Cargo</h3>
+                <p className="text-xs text-slate-400">Esta ação removerá o cargo da base de opções.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Tem certeza que deseja excluir o cargo <strong className="text-white">{cargoExcluindo.nome}</strong>?
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => setCargoExcluindo(null)}
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmarExclusaoCargo}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold shadow-lg shadow-red-600/30 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Sim, Excluir</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 9: ADICIONAR / EDITAR SUGESTÃO DE OBSERVAÇÃO        */}
+      {/* ========================================================= */}
+      {modalSugestaoAberto && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded-xl">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">
+                    {sugestaoEditando ? 'Editar Sugestão de Observação' : 'Cadastrar Nova Sugestão'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    O texto aparecerá como um botão de clique rápido no formulário do profissional.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalSugestaoAberto(false)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {erroFormSugestao && (
+              <div className="p-3 rounded-lg bg-red-950/60 border border-red-800/80 text-xs text-red-200 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                <span>{erroFormSugestao}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSalvarSugestao} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider">
+                  Texto da Sugestão / Observação <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formSugestao.texto}
+                  onChange={(e) => setFormSugestao({ ...formSugestao, texto: e.target.value })}
+                  placeholder="Ex: Responsável pelo plantão A; Portaria Principal; HT canal 01..."
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-purple-500 rounded-lg px-3 py-2 text-slate-100 font-semibold focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider">
+                    Destinado a
+                  </label>
+                  <select
+                    value={formSugestao.tipo}
+                    onChange={(e) => setFormSugestao({ ...formSugestao, tipo: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-purple-500 rounded-lg px-3 py-2 text-slate-100 focus:outline-none cursor-pointer"
+                  >
+                    <option value="OPERADOR">Operadores CCO (Central)</option>
+                    <option value="VIGILANTE">Vigilantes de Posto (Campo)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider">
+                    Status
+                  </label>
+                  <select
+                    value={formSugestao.status}
+                    onChange={(e) => setFormSugestao({ ...formSugestao, status: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-purple-500 rounded-lg px-3 py-2 text-slate-100 focus:outline-none cursor-pointer"
+                  >
+                    <option value="Ativo">Ativo (Visível nos Botões)</option>
+                    <option value="Inativo">Inativo (Oculto)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setModalSugestaoAberto(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold shadow-lg shadow-purple-600/30 flex items-center gap-2 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{sugestaoEditando ? 'Salvar Alterações' : 'Cadastrar Sugestão'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 10: CONFIRMAÇÃO DE EXCLUSÃO DE SUGESTÃO             */}
+      {/* ========================================================= */}
+      {sugestaoExcluindo && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-red-600/20 text-red-400 border border-red-500/30 rounded-xl">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-white">Excluir Sugestão</h3>
+                <p className="text-xs text-slate-400">Esta ação removerá a sugestão rápida.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Tem certeza que deseja excluir a sugestão <strong className="text-white">"{sugestaoExcluindo.texto}"</strong>?
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => setSugestaoExcluindo(null)}
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmarExclusaoSugestao}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold shadow-lg shadow-red-600/30 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Sim, Excluir</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 11: ADICIONAR / EDITAR PRÉDIO E ÁREA                */}
+      {/* ========================================================= */}
+      {modalTaxonomiaAberto && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-xl">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">
+                    {itemTaxonomiaEditando ? 'Editar Área / Prédio' : 'Cadastrar Nova Área / Prédio'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    A área ficará disponível no menu suspenso de Ocorrências (RO) do prédio correspondente.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalTaxonomiaAberto(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSalvarTaxonomia} className="space-y-4 text-xs">
+              {erroFormTaxonomia && (
+                <div className="p-3 bg-red-950/40 border border-red-800/60 rounded-xl text-red-300 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{erroFormTaxonomia}</span>
+                </div>
+              )}
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-300 uppercase tracking-wider">
+                    Prédio Estrutural <span className="text-red-400">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setModoNovoPredio(!modoNovoPredio)}
+                    className="text-[11px] text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+                  >
+                    {modoNovoPredio ? 'Selecionar prédio existente' : '+ Digitar novo prédio'}
+                  </button>
+                </div>
+
+                {modoNovoPredio ? (
+                  <input
+                    type="text"
+                    value={formTaxonomia.predio}
+                    onChange={(e) => setFormTaxonomia({ ...formTaxonomia, predio: e.target.value.toUpperCase() })}
+                    placeholder="Ex: RESTAURANTE (SODEXO), PORTARIA 1, GDM 1..."
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-2 text-slate-100 font-semibold focus:outline-none uppercase"
+                    required
+                    autoFocus
+                  />
+                ) : (
+                  <select
+                    value={formTaxonomia.predio}
+                    onChange={(e) => setFormTaxonomia({ ...formTaxonomia, predio: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-2 text-slate-100 font-semibold focus:outline-none cursor-pointer"
+                    required
+                  >
+                    <option value="">-- Selecione o Prédio --</option>
+                    {prediosDisponiveisTaxonomia.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                    {formTaxonomia.predio && !prediosDisponiveisTaxonomia.includes(formTaxonomia.predio) && (
+                      <option value={formTaxonomia.predio}>{formTaxonomia.predio}</option>
+                    )}
+                  </select>
+                )}
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider">
+                  Nome da Área / Setor <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formTaxonomia.area}
+                  onChange={(e) => setFormTaxonomia({ ...formTaxonomia, area: e.target.value.toUpperCase() })}
+                  placeholder="Ex: CATRACA RESTAURANTE, MESAS REFEITORIO, GUARITA..."
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-2 text-slate-100 font-semibold focus:outline-none uppercase"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1 uppercase tracking-wider">
+                  Status
+                </label>
+                <select
+                  value={formTaxonomia.status}
+                  onChange={(e) => setFormTaxonomia({ ...formTaxonomia, status: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-2 text-slate-100 focus:outline-none cursor-pointer"
+                >
+                  <option value="Ativo">Ativo (Disponível nos Relatórios de Ocorrência)</option>
+                  <option value="Inativo">Inativo (Oculto no formulário de RO)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setModalTaxonomiaAberto(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/30 flex items-center gap-2 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{itemTaxonomiaEditando ? 'Salvar Alterações' : 'Cadastrar Área / Prédio'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 12: CONFIRMAÇÃO DE EXCLUSÃO DE PRÉDIO / ÁREA         */}
+      {/* ========================================================= */}
+      {itemTaxonomiaExcluindo && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-red-600/20 text-red-400 border border-red-500/30 rounded-xl">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-white">Excluir Área / Prédio</h3>
+                <p className="text-xs text-slate-400">Esta ação removerá a área do prédio.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Tem certeza que deseja excluir a área <strong className="text-white">"{itemTaxonomiaExcluindo.area}"</strong> do prédio <strong className="text-indigo-400">"{itemTaxonomiaExcluindo.predio}"</strong>?
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => setItemTaxonomiaExcluindo(null)}
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmarExclusaoTaxonomia}
                 className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold shadow-lg shadow-red-600/30 flex items-center gap-1.5 cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />

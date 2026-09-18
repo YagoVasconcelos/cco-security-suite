@@ -13,6 +13,7 @@ import {
   TrendingUp,
   DollarSign
 } from 'lucide-react';
+import { normalizarGravidade } from '../../constants/taxonomiaCco';
 
 /**
  * Componente oficial de Impressão e Exportação em PDF do CCO Security Suite
@@ -587,17 +588,22 @@ export default function RelatorioExecutivoPrint({
                             {item.numeroRO || item.protocolo || `RO-${idx + 1}`} • {item.predio || item.local || '-'}
                           </td>
                           <td className="py-0.5 text-center">
-                            <span className={`px-1 py-0.2 rounded text-[8px] font-black uppercase ${
-                              (item.severidade || item.prioridade) === 'Crítica'
-                                ? 'bg-red-100 text-red-800'
-                                : (item.severidade || item.prioridade) === 'Alta'
-                                ? 'bg-orange-100 text-orange-800'
-                                : (item.severidade || item.prioridade) === 'Média'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-blue-100 text-blue-800'
-                            }`}>
-                              {item.severidade || item.prioridade || 'Baixa'}
-                            </span>
+                            {(() => {
+                              const grav = normalizarGravidade(item.gravidade || item.severidade || item.prioridade);
+                              return (
+                                <span className={`px-1 py-0.2 rounded text-[8px] font-black uppercase ${
+                                  grav === 'Crítica'
+                                    ? 'bg-red-100 text-red-800'
+                                    : grav === 'Alta'
+                                    ? 'bg-orange-100 text-orange-800'
+                                    : grav === 'Média'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {grav}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="py-0.5 text-right font-mono text-slate-600">
                             {item.data || ''} {item.hora || ''}

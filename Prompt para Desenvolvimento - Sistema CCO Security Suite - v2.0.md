@@ -1,6 +1,6 @@
 # **MASTER PROMPT COPILOT v2.0 — CCO SECURITY SUITE**
 ### **Plataforma Integrada de Inteligência e Central de Controle Operacional**
-**Versão Oficial do Sistema:** `1.0.0` (Release de Produção)  
+**Versão Oficial do Sistema:** `1.1.0` (Release de Produção)  
 **Desenvolvedor:** Yago Marinho  
 **Empresa Proprietária:** TecPrimus Soluções Tecnológicas (@ 2026)  
 **Padrão de Engenharia:** Desktop-First, White-Label, Clean State, Arquitetura Local Resiliente  
@@ -25,7 +25,7 @@
    - Disponível no menu lateral e nas Configurações, exibindo:
      - **Desenvolvedor:** Yago Marinho
      - **Empresa:** TecPrimus Soluções Tecnológicas
-     - **Versão:** 1.0.0
+     - **Versão:** 1.1.0
      - **LinkedIn:** [https://www.linkedin.com/in/yago-marinho-b8a309141/](https://www.linkedin.com/in/yago-marinho-b8a309141/)
      - **GitHub:** [https://github.com/YagoVasconcelos](https://github.com/YagoVasconcelos)
      - **Email Oficial:** tecprimus2021@outlook.com
@@ -204,8 +204,8 @@ CCO/
 │   ├── responsaveis.json
 │   └── seguranca.json
 ├── dist/                               # Pasta final exclusiva dos executáveis gerados pelo builder
-│   ├── CCO Security Suite Setup 1.0.0.exe      # Instalador oficial NSIS
-│   ├── CCO Security Suite Portable 1.0.0.exe   # Versão portátil independente
+│   ├── CCO Security Suite Setup 1.1.0.exe      # Instalador oficial NSIS
+│   ├── CCO Security Suite Portable 1.1.0.exe   # Versão portátil independente
 │   └── win-unpacked/                           # Binário descompactado para testes locais
 ├── dist-react/                         # Bundle web gerado pelo Vite
 ├── docs/                               # Documentação oficial do sistema
@@ -272,8 +272,8 @@ No arquivo `package.json`, a esteira deve fornecer os seguintes comandos:
 | `npm run clean:dist` | Exclui pastas residuais de build (`dist/`, `dist-electron/`, `dist-react/`). |
 | `npm run clean:data` | Restaura o banco de dados para o template limpo oficial (Clean State de fábrica). |
 | `npm run generate:icon` | Renderiza `shield.svg` e compila `shield.ico` nativo em 6 resoluções (256 a 16px). |
-| `npm run build:exe` | Gera exclusivamente o Instalador Oficial (`CCO Security Suite Setup 1.0.0.exe`). |
-| `npm run build:portable` | Gera exclusivamente a Versão Portátil (`CCO Security Suite Portable 1.0.0.exe`). |
+| `npm run build:exe` | Gera exclusivamente o Instalador Oficial (`CCO Security Suite Setup 1.1.0.exe`). |
+| `npm run build:portable` | Gera exclusivamente a Versão Portátil (`CCO Security Suite Portable 1.1.0.exe`). |
 | **`npm run build:all`** | **(Comando Mestre Oficial)** Executa a faxina completa, reseta dados, gera os ícones, compila o React e cria simultaneamente o **Setup** e o **Portable** na pasta `dist/`. |
 | `npm run build:pdf` | Compila a documentação técnica oficial em PDF de acordo com normas ABNT. |
 

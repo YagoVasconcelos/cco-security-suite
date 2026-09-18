@@ -4,6 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
+const cryptoHelper = require('./cryptoHelper.cjs');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -61,7 +62,7 @@ function initializeCleanDataIfMissing(dataDir, rootDir) {
     'provisorios.json': template.provisorios || [],
     'visitantes.json': template.visitantes || [],
     'rfid.json': template.rfid || [],
-    'seguranca.json': template.seguranca || { senhaMestra: 'admin123', dataAtualizacao: new Date().toISOString() },
+    'seguranca.json': template.seguranca || cryptoHelper.gerarRegistroSeguro('admin123'),
     'responsaveis.json': template.responsaveis || {
       gerenteSite: 'Gerência de Operações',
       coordenacao: 'Coordenação de Segurança Corporativa',
@@ -85,6 +86,25 @@ function initializeCleanDataIfMissing(dataDir, rootDir) {
       { id: 'obs-3', nome: 'COM DEFEITO', status: 'Ativo', dataCadastro: '2026-01-01' },
       { id: 'obs-4', nome: 'RETIDO', status: 'Ativo', dataCadastro: '2026-01-01' },
       { id: 'obs-5', nome: 'OUTROS', status: 'Ativo', dataCadastro: '2026-01-01' }
+    ],
+    'cargos.json': template.cargos && template.cargos.length > 0 ? template.cargos : [
+      { id: 'cargo-1', nome: 'Operador CCO', tipo: 'OPERADOR', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'cargo-2', nome: 'Operador CCO Líder', tipo: 'OPERADOR', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'cargo-3', nome: 'Supervisor CCO', tipo: 'OPERADOR', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'cargo-4', nome: 'Administrador / Gestor CCO', tipo: 'OPERADOR', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'cargo-5', nome: 'Vigilante Portaria 1', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'cargo-6', nome: 'Vigilante Portaria 2', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'cargo-7', nome: 'Vigilante Ronda', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'cargo-8', nome: 'Vigilante CFTV Campo', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'cargo-9', nome: 'Inspetor de Segurança de Campo', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' }
+    ],
+    'sugestoes_observacoes.json': template.sugestoes_observacoes && template.sugestoes_observacoes.length > 0 ? template.sugestoes_observacoes : [
+      { id: 'sobs-1', texto: 'Operador autorizado a emitir e assinar relatórios de ocorrência (RO)', tipo: 'OPERADOR', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'sobs-2', texto: 'Responsável pelo monitoramento e despacho de viaturas no plantão', tipo: 'OPERADOR', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'sobs-3', texto: 'Posto principal de controle de acesso de colaboradores e terceiros (P1)', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'sobs-4', texto: 'Posto de controle de acesso de veículos pesados, carretas e cargas (P2)', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'sobs-5', texto: 'Ronda perimetral móvel e fiscalização ostensiva de áreas críticas', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+      { id: 'sobs-6', texto: 'Apoio tático operacional e cobertura de intervalos nas portarias', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' }
     ]
   };
 
@@ -103,35 +123,45 @@ function initializeCleanDataIfMissing(dataDir, rootDir) {
 function getSafeExportDirectory(configuredPath, documentsDir, userDataDir, rootDir) {
   // Se o usuário configurou um caminho personalizado (ex: tela de Configurações)
   if (configuredPath && typeof configuredPath === 'string' && configuredPath.trim()) {
-    const trimmed = configuredPath.trim();
+    let trimmed = configuredPath.trim();
+    const agora = new Date();
+    const ano = String(agora.getFullYear());
+    const mesNum = String(agora.getMonth() + 1).padStart(2, '0');
+    const mesesNomes = ['JANEIRO', 'FEVEREIRO', 'MARCO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+    const mesNome = mesesNomes[agora.getMonth()];
+    const periodoSubpasta = path.join(ano, `${mesNum}.${mesNome}`);
+
+    trimmed = trimmed
+      .replace(/\{ANO\}/gi, ano)
+      .replace(/\{MES\}/gi, mesNum)
+      .replace(/\{MES_NOME\}/gi, mesNome);
+
+    let baseDir = '';
     // Se for caminho absoluto (C:\... ou D:\...) ou caminho de rede UNC (\\servidor\compartilhamento)
     if (path.isAbsolute(trimmed) || trimmed.startsWith('\\\\')) {
-      try {
-        if (!fs.existsSync(trimmed)) {
-          fs.mkdirSync(trimmed, { recursive: true });
-        }
-        const testFile = path.join(trimmed, `.test_write_${Date.now()}`);
-        fs.writeFileSync(testFile, 'ok');
-        fs.unlinkSync(testFile);
-        return trimmed;
-      } catch (err) {
-        console.warn(`[Server] Caminho configurado (${trimmed}) inacessível ou sem permissão:`, err.message);
-      }
+      baseDir = trimmed;
     } else {
       // Se for relativo (ex: 'MAPA DE CALOR/2026/09.SETEMBRO'), resolve dentro da pasta Documentos do usuário
       const docBase = documentsDir || (process.env.USERPROFILE ? path.join(process.env.USERPROFILE, 'Documents') : rootDir);
-      const safeRelative = path.join(docBase, 'CCO Security Suite', trimmed);
-      try {
-        if (!fs.existsSync(safeRelative)) {
-          fs.mkdirSync(safeRelative, { recursive: true });
-        }
-        const testFile = path.join(safeRelative, `.test_write_${Date.now()}`);
-        fs.writeFileSync(testFile, 'ok');
-        fs.unlinkSync(testFile);
-        return safeRelative;
-      } catch (err) {
-        console.warn(`[Server] Caminho relativo seguro (${safeRelative}) inacessível:`, err.message);
+      baseDir = path.join(docBase, 'CCO Security Suite', trimmed);
+    }
+
+    // Se o caminho configurado não possuir ano nem mês corrente na estrutura, organiza na subpasta de período
+    const baseNormalized = baseDir.toUpperCase();
+    if (!baseNormalized.includes(ano) && !baseNormalized.includes(mesNome)) {
+      baseDir = path.join(baseDir, periodoSubpasta);
+    }
+
+    try {
+      if (!fs.existsSync(baseDir)) {
+        fs.mkdirSync(baseDir, { recursive: true });
       }
+      const testFile = path.join(baseDir, `.test_write_${Date.now()}`);
+      fs.writeFileSync(testFile, 'ok');
+      fs.unlinkSync(testFile);
+      return baseDir;
+    } catch (err) {
+      console.warn(`[Server] Caminho configurado (${baseDir}) inacessível ou sem permissão:`, err.message);
     }
   }
 
@@ -158,6 +188,34 @@ function getSafeExportDirectory(configuredPath, documentsDir, userDataDir, rootD
   }
 
   return path.join(rootDir, 'data');
+}
+
+function getNonConflictingPath(targetDir, filename) {
+  const ext = path.extname(filename);
+  let base = path.basename(filename, ext);
+
+  let counter = 1;
+  const matchSuffix = base.match(/^(.*)\s*\((\d+)\)$/);
+  if (matchSuffix) {
+    base = matchSuffix[1].trim();
+    counter = parseInt(matchSuffix[2], 10);
+  }
+
+  // Verifica se o arquivo com o nome exato passado existe
+  const directPath = path.join(targetDir, filename);
+  if (!fs.existsSync(directPath)) {
+    return { finalPath: directPath, finalFilename: filename };
+  }
+
+  // Se já existe, procura o próximo índice sequencial (counter + 1, ...)
+  while (true) {
+    counter++;
+    const candidateFilename = `${base} (${counter})${ext}`;
+    const candidatePath = path.join(targetDir, candidateFilename);
+    if (!fs.existsSync(candidatePath)) {
+      return { finalPath: candidatePath, finalFilename: candidateFilename };
+    }
+  }
 }
 
 function startServer(options = {}) {
@@ -348,39 +406,35 @@ function startServer(options = {}) {
           const savedPaths = [];
           const warnings = [];
 
-          // 1. Grava no diretório seguro padrão em Documentos do Windows
-          const primaryDir = getSafeExportDirectory(null, resolvedDocumentsDir, resolvedUserDataDir, rootDir);
+          // 1. Resolve o diretório configurado pelo usuário ou o padrão seguro
+          const primaryDir = getSafeExportDirectory(caminhoRede, resolvedDocumentsDir, resolvedUserDataDir, rootDir);
+          const { finalPath: primaryFilePath, finalFilename } = getNonConflictingPath(primaryDir, filename);
+
           try {
             if (!fs.existsSync(primaryDir)) fs.mkdirSync(primaryDir, { recursive: true });
-            const primaryFilePath = path.join(primaryDir, filename);
             fs.writeFileSync(primaryFilePath, pdfBuffer);
             savedPaths.push(primaryFilePath);
           } catch (priErr) {
-            console.error('[Server] Erro ao salvar PDF no diretório seguro primário:', priErr);
-            warnings.push(`Falha de permissão no diretório local (${primaryDir}): ${priErr.message}`);
+            console.error('[Server] Erro ao salvar PDF no diretório configurado:', priErr);
+            warnings.push(`Falha de permissão no diretório configurado (${primaryDir}): ${priErr.message}`);
           }
 
-          // 2. Se houver caminho de rede ou pasta personalizada configurada, grava cópia adicional
-          if (caminhoRede && typeof caminhoRede === 'string' && caminhoRede.trim()) {
+          // 2. Grava cópia de segurança redundante em Documents/CCO Security Suite/exports
+          const backupDir = getSafeExportDirectory(null, resolvedDocumentsDir, resolvedUserDataDir, rootDir);
+          if (backupDir && backupDir !== primaryDir) {
             try {
-              const customDir = getSafeExportDirectory(caminhoRede, resolvedDocumentsDir, resolvedUserDataDir, rootDir);
-              if (customDir && customDir !== primaryDir) {
-                if (!fs.existsSync(customDir)) fs.mkdirSync(customDir, { recursive: true });
-                const customFilePath = path.join(customDir, filename);
-                fs.writeFileSync(customFilePath, pdfBuffer);
-                savedPaths.push(customFilePath);
-              }
-            } catch (customErr) {
-              console.warn('[Server] Falha ao gravar PDF no caminho de rede:', customErr.message);
-              warnings.push(`Não foi possível salvar na pasta de rede informada (${caminhoRede}): ${customErr.message}. Cópia salva com segurança na pasta Documentos.`);
-            }
+              if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+              const backupFilePath = path.join(backupDir, finalFilename);
+              fs.writeFileSync(backupFilePath, pdfBuffer);
+              savedPaths.push(backupFilePath);
+            } catch (bkpErr) {}
           }
 
           // 3. Tenta espelhar na pasta exports da raiz se for gravável
           try {
             const rootExports = path.join(rootDir, 'exports');
-            if (rootExports !== primaryDir && fs.existsSync(rootExports)) {
-              const rootFilePath = path.join(rootExports, filename);
+            if (rootExports !== primaryDir && rootExports !== backupDir && fs.existsSync(rootExports)) {
+              const rootFilePath = path.join(rootExports, finalFilename);
               fs.writeFileSync(rootFilePath, pdfBuffer);
             }
           } catch (e) {}
@@ -401,6 +455,7 @@ function startServer(options = {}) {
             success: true,
             savedPaths,
             primaryPath: savedPaths[0],
+            filename: finalFilename,
             warnings: warnings.length > 0 ? warnings : undefined
           }));
           return;
@@ -712,67 +767,82 @@ function startServer(options = {}) {
         }
       }
 
-      // 7. Segurança - GET e POST /api/seguranca e /api/salvar-senha
-      if (pathname === '/api/seguranca' || pathname === '/api/salvar-senha') {
+      // 7. Segurança - GET /api/seguranca, POST /api/validar-senha e POST /api/salvar-senha
+      if (pathname === '/api/seguranca' || pathname === '/api/salvar-senha' || pathname === '/api/validar-senha' || pathname === '/api/seguranca/validar') {
         const dataJsonPath = path.join(dataDir, 'seguranca.json');
         const rootJsonPath = path.join(rootDir, 'seguranca.json');
 
-        if (req.method === 'GET') {
-          let config = { senhaMestra: 'admin123', dataAtualizacao: new Date().toISOString() };
-          if (fs.existsSync(dataJsonPath)) {
-            try { config = JSON.parse(fs.readFileSync(dataJsonPath, 'utf-8')); } catch (e) {}
-          } else if (fs.existsSync(rootJsonPath)) {
-            try { config = JSON.parse(fs.readFileSync(rootJsonPath, 'utf-8')); } catch (e) {}
-          }
+        // GET /api/seguranca -> Retorna metadados de auditoria (sem senhas ou hashes)
+        if (req.method === 'GET' && pathname === '/api/seguranca') {
+          const seguranca = cryptoHelper.carregarOuMigrarSeguranca(dataJsonPath, rootJsonPath);
+          const metadados = cryptoHelper.obterMetadadosPublicos(seguranca);
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify(config));
+          res.end(JSON.stringify(metadados));
           return;
         }
 
+        // POST /api/validar-senha (ou /api/seguranca/validar) -> Validação no servidor
+        if (req.method === 'POST' && (pathname === '/api/validar-senha' || pathname === '/api/seguranca/validar')) {
+          try {
+            const body = await parseJsonBody(req);
+            const senhaDigitada = (body.senha || body.senhaMestra || '').trim();
+
+            const seguranca = cryptoHelper.carregarOuMigrarSeguranca(dataJsonPath, rootJsonPath);
+            const valido = cryptoHelper.verificarSenha(senhaDigitada, seguranca);
+
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({
+              success: true,
+              valido,
+              message: valido ? 'Autenticação autorizada com sucesso.' : 'Senha mestra incorreta.'
+            }));
+            return;
+          } catch (err) {
+            console.error('[Server] Erro ao validar senha:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+            return;
+          }
+        }
+
+        // POST /api/salvar-senha (ou /api/seguranca) -> Alteração com Hash Criptográfico
         if (req.method === 'POST') {
           try {
             const body = await parseJsonBody(req);
             const novaSenha = (body.novaSenha || body.senha || '').trim();
             const senhaAtual = body.senhaAtual;
 
-            if (!novaSenha) {
+            if (!novaSenha || novaSenha.length < 4) {
               res.statusCode = 400;
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: 'Nova senha é obrigatória.' }));
+              res.end(JSON.stringify({ error: 'A nova senha deve possuir pelo menos 4 caracteres.' }));
               return;
             }
 
-            // Verifica senha atual se fornecida
-            let segurancaAtual = { senhaMestra: 'admin123' };
-            if (fs.existsSync(dataJsonPath)) {
-              try { segurancaAtual = JSON.parse(fs.readFileSync(dataJsonPath, 'utf-8')); } catch (e) {}
-            } else if (fs.existsSync(rootJsonPath)) {
-              try { segurancaAtual = JSON.parse(fs.readFileSync(rootJsonPath, 'utf-8')); } catch (e) {}
+            const segurancaAtual = cryptoHelper.carregarOuMigrarSeguranca(dataJsonPath, rootJsonPath);
+
+            if (senhaAtual !== undefined) {
+              const ok = cryptoHelper.verificarSenha(senhaAtual, segurancaAtual);
+              if (!ok) {
+                res.statusCode = 401;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'A senha mestra atual informada está incorreta.' }));
+                return;
+              }
             }
 
-            if (senhaAtual !== undefined && senhaAtual.trim() !== segurancaAtual.senhaMestra.trim()) {
-              res.statusCode = 401;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: 'A senha mestra atual informada está incorreta.' }));
-              return;
-            }
-
-            const novoObjeto = {
-              senhaMestra: novaSenha,
-              dataAtualizacao: new Date().toISOString()
-            };
-
-            const jsonStr = JSON.stringify(novoObjeto, null, 2);
-            fs.writeFileSync(dataJsonPath, jsonStr, 'utf-8');
-            try { fs.writeFileSync(rootJsonPath, jsonStr, 'utf-8'); } catch (e) {}
+            const novoRegistro = cryptoHelper.gerarRegistroSeguro(novaSenha);
+            cryptoHelper.salvarEmDisco(dataJsonPath, rootJsonPath, novoRegistro);
 
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({
               success: true,
-              message: 'Senha mestra alterada com sucesso!',
-              dataAtualizacao: novoObjeto.dataAtualizacao
+              message: 'Senha mestra alterada e blindada com sucesso!',
+              dataAtualizacao: novoRegistro.dataAtualizacao
             }));
             return;
           } catch (err) {
@@ -879,6 +949,164 @@ function startServer(options = {}) {
             res.statusCode = 400;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ error: 'Array de observações inválido.' }));
+            return;
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+            return;
+          }
+        }
+      }
+
+      // 9.1. Cargos Sugeridos - GET e POST /api/cargos e /api/salvar-cargos
+      if (pathname === '/api/cargos' || pathname === '/api/salvar-cargos') {
+        const dataJsonPath = path.join(dataDir, 'cargos.json');
+        const rootJsonPath = path.join(rootDir, 'cargos.json');
+
+        if (req.method === 'GET') {
+          let lista = [];
+          if (fs.existsSync(dataJsonPath)) {
+            try { lista = JSON.parse(fs.readFileSync(dataJsonPath, 'utf-8')); } catch (e) { lista = []; }
+          } else if (fs.existsSync(rootJsonPath)) {
+            try { lista = JSON.parse(fs.readFileSync(rootJsonPath, 'utf-8')); } catch (e) { lista = []; }
+          }
+          if (!Array.isArray(lista) || lista.length === 0) {
+            lista = [
+              { id: 'cargo-1', nome: 'Operador CCO', tipo: 'OPERADOR', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'cargo-2', nome: 'Operador CCO Líder', tipo: 'OPERADOR', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'cargo-3', nome: 'Supervisor CCO', tipo: 'OPERADOR', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'cargo-4', nome: 'Administrador / Gestor CCO', tipo: 'OPERADOR', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'cargo-5', nome: 'Vigilante Portaria 1', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'cargo-6', nome: 'Vigilante Portaria 2', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'cargo-7', nome: 'Vigilante Ronda', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'cargo-8', nome: 'Vigilante CFTV Campo', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'cargo-9', nome: 'Inspetor de Segurança de Campo', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' }
+            ];
+          }
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(lista));
+          return;
+        }
+
+        if (req.method === 'POST') {
+          try {
+            const body = await parseJsonBody(req);
+            const cargos = Array.isArray(body) ? body : body.cargos;
+            if (Array.isArray(cargos)) {
+              const jsonStr = JSON.stringify(cargos, null, 2);
+              fs.writeFileSync(dataJsonPath, jsonStr, 'utf-8');
+              try { fs.writeFileSync(rootJsonPath, jsonStr, 'utf-8'); } catch (e) {}
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, count: cargos.length }));
+              return;
+            }
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Array de cargos inválido.' }));
+            return;
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+            return;
+          }
+        }
+      }
+
+      // 9.2. Sugestões de Observação - GET e POST /api/sugestoes-observacoes e /api/salvar-sugestoes-observacoes
+      if (pathname === '/api/sugestoes-observacoes' || pathname === '/api/salvar-sugestoes-observacoes') {
+        const dataJsonPath = path.join(dataDir, 'sugestoes_observacoes.json');
+        const rootJsonPath = path.join(rootDir, 'sugestoes_observacoes.json');
+
+        if (req.method === 'GET') {
+          let lista = [];
+          if (fs.existsSync(dataJsonPath)) {
+            try { lista = JSON.parse(fs.readFileSync(dataJsonPath, 'utf-8')); } catch (e) { lista = []; }
+          } else if (fs.existsSync(rootJsonPath)) {
+            try { lista = JSON.parse(fs.readFileSync(rootJsonPath, 'utf-8')); } catch (e) { lista = []; }
+          }
+          if (!Array.isArray(lista) || lista.length === 0) {
+            lista = [
+              { id: 'sobs-1', texto: 'Operador autorizado a emitir e assinar relatórios de ocorrência (RO)', tipo: 'OPERADOR', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'sobs-2', texto: 'Responsável pelo monitoramento e despacho de viaturas no plantão', tipo: 'OPERADOR', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'sobs-3', texto: 'Posto principal de controle de acesso de colaboradores e terceiros (P1)', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'sobs-4', texto: 'Posto de controle de acesso de veículos pesados, carretas e cargas (P2)', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'sobs-5', texto: 'Ronda perimetral móvel e fiscalização ostensiva de áreas críticas', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' },
+              { id: 'sobs-6', texto: 'Apoio tático operacional e cobertura de intervalos nas portarias', tipo: 'VIGILANTE', status: 'Ativo', dataCadastro: '2026-01-01' }
+            ];
+          }
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(lista));
+          return;
+        }
+
+        if (req.method === 'POST') {
+          try {
+            const body = await parseJsonBody(req);
+            const sugestoes = Array.isArray(body) ? body : body.sugestoes;
+            if (Array.isArray(sugestoes)) {
+              const jsonStr = JSON.stringify(sugestoes, null, 2);
+              fs.writeFileSync(dataJsonPath, jsonStr, 'utf-8');
+              try { fs.writeFileSync(rootJsonPath, jsonStr, 'utf-8'); } catch (e) {}
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, count: sugestoes.length }));
+              return;
+            }
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Array de sugestões inválido.' }));
+            return;
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+            return;
+          }
+        }
+      }
+
+      // 9.3. Taxonomia de Prédios e Áreas - GET e POST /api/taxonomia-predios-areas e /api/salvar-taxonomia-predios-areas
+      if (pathname === '/api/taxonomia-predios-areas' || pathname === '/api/salvar-taxonomia-predios-areas') {
+        const dataJsonPath = path.join(dataDir, 'taxonomia_predios_areas.json');
+        const rootJsonPath = path.join(rootDir, 'taxonomia_predios_areas.json');
+
+        if (req.method === 'GET') {
+          let lista = [];
+          if (fs.existsSync(dataJsonPath)) {
+            try { lista = JSON.parse(fs.readFileSync(dataJsonPath, 'utf-8')); } catch (e) { lista = []; }
+          } else if (fs.existsSync(rootJsonPath)) {
+            try { lista = JSON.parse(fs.readFileSync(rootJsonPath, 'utf-8')); } catch (e) { lista = []; }
+          }
+          if (!Array.isArray(lista)) {
+            lista = [];
+          }
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(lista));
+          return;
+        }
+
+        if (req.method === 'POST') {
+          try {
+            const body = await parseJsonBody(req);
+            const itens = Array.isArray(body) ? body : body.itens;
+            if (Array.isArray(itens)) {
+              const jsonStr = JSON.stringify(itens, null, 2);
+              fs.writeFileSync(dataJsonPath, jsonStr, 'utf-8');
+              try { fs.writeFileSync(rootJsonPath, jsonStr, 'utf-8'); } catch (e) {}
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, count: itens.length }));
+              return;
+            }
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Array de taxonomia inválido.' }));
             return;
           } catch (err) {
             res.statusCode = 500;
