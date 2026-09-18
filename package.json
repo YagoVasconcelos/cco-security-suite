@@ -15,7 +15,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean:dist": "node scripts/clean-dist.cjs",
-    "clean:data": "node scripts/clean-data.cjs",
+    "clean:data": "node scripts/reset-database.cjs",
     "generate:icon": "electron scripts/generate-icon.cjs",
     "generate:docs-pdf": "electron scripts/generate-pdf-docs.cjs",
     "build:pdf": "electron scripts/build-manual-pdf.cjs",
@@ -24,7 +24,7 @@
     "electron:start": "electron .",
     "build:exe": "npm run clean:dist && npm run clean:data && npm run generate:icon && vite build && electron-builder --win nsis",
     "build:portable": "npm run clean:dist && npm run clean:data && npm run generate:icon && vite build && electron-builder --win portable",
-    "build:all": "npm run clean:dist && npm run clean:data && npm run generate:icon && vite build && electron-builder --win nsis && electron-builder --win portable"
+    "build:all": "npm run clean:dist && npm run clean:data && npm run generate:icon && vite build && electron-builder --win nsis portable"
   },
   "build": {
     "appId": "com.tecprimus.ccosecuritysuite",

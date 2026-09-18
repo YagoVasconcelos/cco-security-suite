@@ -1,16 +1,18 @@
 ; Script de Customização NSIS - CCO Security Suite Rev 1.2
 ; Proteção por Senha de Instalação e Aceite Contratual
 
-Page custom PasswordPage PasswordPageLeave
+!ifndef BUILD_UNINSTALLER
+!include nsDialogs.nsh
+!include LogicLib.nsh
 
 Var PasswordDialog
 Var PasswordInput
 Var PasswordValue
 Var PasswordLabel
 
+Page custom PasswordPage PasswordPageLeave
+
 Function PasswordPage
-  !insertmacro MUI_HEADER_TEXT "Validação de Segurança e Licenciamento" "Digite a senha de instalação autorizada pela TecPrimus Soluções Tecnológicas"
-  
   nsDialogs::Create 1018
   Pop $PasswordDialog
   ${If} $PasswordDialog == error
@@ -34,3 +36,4 @@ Function PasswordPageLeave
     Quit
   ${EndIf}
 FunctionEnd
+!endif
