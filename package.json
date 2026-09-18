@@ -30,6 +30,8 @@
     "appId": "com.tecprimus.ccosecuritysuite",
     "productName": "CCO Security Suite",
     "copyright": "Copyright © 2026 TecPrimus Soluções Tecnológicas",
+    "electronVersion": "22.3.27",
+    "npmRebuild": false,
     "directories": {
       "output": "dist",
       "buildResources": "build"
